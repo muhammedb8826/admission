@@ -7,12 +7,12 @@ const nextConfig = {
       {
         protocol: "http",
         hostname: "localhost",
-        port: "8080",
+        port: "1337",
         pathname: "/uploads/**",
       },
       {
         protocol: "https",
-        hostname: "alumni-api.qenenia.com",
+        hostname: "admission-portal.qenenia.com",
         pathname: "/uploads/**",
       },
     ],
