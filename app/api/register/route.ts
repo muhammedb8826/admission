@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getStrapiURL } from "@/lib/strapi/client";
 
 type StrapiAuthResponse = {
-  jwt: string;
+  jwt?: string;
   user: {
     id: number;
     username: string;
     email: string;
+    confirmed?: boolean;
+    blocked?: boolean;
     firstName?: string;
     lastName?: string;
     [key: string]: unknown;
@@ -114,15 +116,38 @@ export async function POST(request: NextRequest) {
 
     const authData = result as StrapiAuthResponse;
 
-    // Don't create session - user needs to login after registration
+    // Check if email confirmation is required
+    const isEmailConfirmed = authData.user.confirmed ?? true; // Default to true if not specified
+    
+    // If email confirmation is enabled and user is not confirmed, send confirmation message
+    if (!isEmailConfirmed) {
+      return NextResponse.json(
+        {
+          success: true,
+          requiresConfirmation: true,
+          message: "Registration successful! Please check your email to confirm your account before logging in.",
+          user: {
+            id: authData.user.id,
+            username: authData.user.username,
+            email: authData.user.email,
+            confirmed: false,
+          },
+        },
+        { status: 201 }
+      );
+    }
+
+    // Email already confirmed (or confirmation not required)
     return NextResponse.json(
       {
         success: true,
+        requiresConfirmation: false,
         message: "Registration successful! Please login to continue.",
         user: {
           id: authData.user.id,
           username: authData.user.username,
           email: authData.user.email,
+          confirmed: true,
         },
       },
       { status: 201 }

@@ -8,9 +8,14 @@ type StrapiAuthResponse = {
     id: number;
     username: string;
     email: string;
+    confirmed?: boolean;
+    blocked?: boolean;
     firstName?: string;
     lastName?: string;
     [key: string]: unknown;
+  };
+  error?: {
+    message?: string;
   };
 };
 
@@ -64,6 +69,28 @@ export async function POST(request: NextRequest) {
     }
 
     const authData = result as StrapiAuthResponse;
+
+    // Check if email is confirmed
+    // Strapi may block unconfirmed users from logging in depending on settings
+    // But we check anyway to provide a helpful error message
+    if (authData.user.confirmed === false) {
+      return NextResponse.json(
+        { 
+          error: "Please confirm your email address before logging in. Check your email for the confirmation link.",
+          requiresConfirmation: true,
+          email: authData.user.email,
+        },
+        { status: 403 }
+      );
+    }
+
+    // Check if user is blocked
+    if (authData.user.blocked === true) {
+      return NextResponse.json(
+        { error: "Your account has been blocked. Please contact support." },
+        { status: 403 }
+      );
+    }
 
     // Create session with user data from Strapi
     await createSession({

@@ -1,14 +1,21 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useState, Suspense } from "react";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 
-export function ResetPasswordTokenForm() {
+function ResetPasswordTokenFormContent() {
   const router = useRouter();
   const params = useParams();
-  const token = params?.token as string;
+  const searchParams = useSearchParams();
+  
+  // Support both path parameter (token) and query parameter (code)
+  // Strapi sends 'code' as query param, but we also support 'token' in path for flexibility
+  const pathToken = params?.token as string | undefined;
+  const queryCode = searchParams?.get("code") || null;
+  const resetCode = queryCode || pathToken || "";
+  
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -36,20 +43,26 @@ export function ResetPasswordTokenForm() {
       return;
     }
 
-    if (!token) {
-      setError("Invalid reset token");
+    if (!resetCode) {
+      setError("Invalid reset code. Please check the link in your email.");
       return;
     }
 
     setIsSubmitting(true);
 
     try {
+      // Send as 'code' to match Strapi's API, but also include token for backward compatibility
       const response = await fetch("/api/auth/reset-password/confirm", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ token, password }),
+        body: JSON.stringify({ 
+          code: resetCode, 
+          token: resetCode, // For backward compatibility
+          password,
+          passwordConfirmation: confirmPassword,
+        }),
       });
 
       const result = await response.json().catch(() => ({}));
@@ -188,6 +201,20 @@ export function ResetPasswordTokenForm() {
         </Link>
       </div>
     </form>
+  );
+}
+
+export function ResetPasswordTokenForm() {
+  return (
+    <Suspense fallback={
+      <div className="space-y-6 rounded-xl border bg-card/60 p-6 shadow-sm">
+        <div className="h-10 w-full animate-pulse rounded-md bg-muted" />
+        <div className="h-10 w-full animate-pulse rounded-md bg-muted" />
+        <div className="h-10 w-full animate-pulse rounded-md bg-muted" />
+      </div>
+    }>
+      <ResetPasswordTokenFormContent />
+    </Suspense>
   );
 }
 

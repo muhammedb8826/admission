@@ -14,6 +14,8 @@ function LoginFormContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ identifier?: string; password?: string; submit?: string }>({});
   const isRegistered = searchParams.get("registered") === "true";
+  const confirmationRequired = searchParams.get("confirmation_required") === "true";
+  const isConfirmed = searchParams.get("confirmed") === "true";
 
   const validate = () => {
     const newErrors: { identifier?: string; password?: string; submit?: string } = {};
@@ -54,6 +56,12 @@ function LoginFormContent() {
       const result = await response.json().catch(() => ({}));
 
       if (!response.ok) {
+        // Check if email confirmation is required
+        if (result.requiresConfirmation === true) {
+          // Redirect to resend confirmation page
+          router.push(`/email-confirmation?email=${encodeURIComponent(identifier)}`);
+          return;
+        }
         throw new Error(result.error || "Login failed");
       }
 
@@ -74,10 +82,32 @@ function LoginFormContent() {
   return (
     <form onSubmit={handleSubmit} className="space-y-6 rounded-xl border bg-card/60 p-6 shadow-sm">
       {/* Success message */}
-      {isRegistered && (
+      {isRegistered && !confirmationRequired && (
         <div className="rounded-md border border-emerald-500/50 bg-emerald-600/10 px-4 py-3 text-sm text-emerald-600 dark:text-emerald-400">
           <p className="font-medium">Registration Successful!</p>
           <p className="mt-1">Your account has been created. Please login to continue.</p>
+        </div>
+      )}
+      
+      {/* Email confirmation required message */}
+      {confirmationRequired && (
+        <div className="rounded-md border border-amber-500/50 bg-amber-600/10 px-4 py-3 text-sm text-amber-600 dark:text-amber-400">
+          <p className="font-medium">Registration Successful!</p>
+          <p className="mt-1">Please check your email to confirm your account before logging in.</p>
+          <Link
+            href="/email-confirmation"
+            className="mt-2 inline-block text-xs font-medium underline hover:no-underline"
+          >
+            Resend confirmation email
+          </Link>
+        </div>
+      )}
+
+      {/* Email confirmed message */}
+      {isConfirmed && (
+        <div className="rounded-md border border-emerald-500/50 bg-emerald-600/10 px-4 py-3 text-sm text-emerald-600 dark:text-emerald-400">
+          <p className="font-medium">Email Confirmed!</p>
+          <p className="mt-1">Your email has been confirmed. You can now login.</p>
         </div>
       )}
       {/* Inline error message */}

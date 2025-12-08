@@ -1,19 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
-import { strapiFetch } from "@/lib/strapi/client";
+import { getStrapiURL } from "@/lib/strapi/client";
 
 type StrapiResponse = {
-  message: string;
+  jwt?: string;
+  user?: {
+    id: number;
+    username: string;
+    email: string;
+  };
+  message?: string;
+  error?: {
+    message?: string;
+    status?: number;
+    data?: Array<{
+      messages?: Array<{
+        message?: string;
+      }>;
+    }>;
+  };
 };
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => null);
-    const token = body?.token as string | undefined;
+    const code = body?.code as string | undefined;
     const password = body?.password as string | undefined;
+    const passwordConfirmation = body?.passwordConfirmation as string | undefined;
+    // Also support 'token' for backward compatibility
+    const token = body?.token as string | undefined;
 
-    if (!token || !password) {
+    // Use code or token (Strapi uses 'code', but we support both for flexibility)
+    const resetCode = code || token;
+
+    if (!resetCode || !password) {
       return NextResponse.json(
-        { error: "Token and password are required" },
+        { error: "Reset code and password are required" },
         { status: 400 }
       );
     }
@@ -25,55 +46,76 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Call Strapi custom endpoint to reset password
-    try {
-      const response = await strapiFetch<StrapiResponse>(
-        "almuni-registrations/reset-password",
-        {
-          method: "POST",
-          body: JSON.stringify({ token, password }),
-        }
+    // Use passwordConfirmation if provided, otherwise use password
+    const confirmPassword = passwordConfirmation || password;
+
+    if (password !== confirmPassword) {
+      return NextResponse.json(
+        { error: "Passwords do not match" },
+        { status: 400 }
       );
-
-      // Check if response has data (endpoint exists and worked)
-      if (response && 'message' in response) {
-        return NextResponse.json(
-          {
-            success: true,
-            message: response.message || "Password has been reset successfully",
-          },
-          { status: 200 }
-        );
-      }
-
-      // If response is empty, endpoint might not exist
-      throw new Error("Password reset endpoint not configured");
-    } catch (strapiError: unknown) {
-      // Check if it's a 405 or 404 error (endpoint doesn't exist)
-      const errorMessage = strapiError instanceof Error ? strapiError.message : String(strapiError);
-      if (errorMessage.includes("405") || errorMessage.includes("404")) {
-        console.error("Strapi password reset endpoint not found. Please add the custom routes in Strapi.");
-        return NextResponse.json(
-          { error: "Password reset functionality is not configured. Please contact support." },
-          { status: 503 }
-        );
-      }
-      
-      // For other errors (like invalid token), return appropriate message
-      if (errorMessage.includes("400") || errorMessage.includes("Invalid")) {
-        return NextResponse.json(
-          { error: "Invalid or expired reset token. Please request a new one." },
-          { status: 400 }
-        );
-      }
-      
-      throw strapiError;
     }
+
+    const strapiUrl = getStrapiURL();
+    if (!strapiUrl) {
+      return NextResponse.json(
+        { error: "Strapi API is not configured" },
+        { status: 500 }
+      );
+    }
+
+    // Call Strapi's built-in reset password endpoint
+    // Strapi uses: code, password, passwordConfirmation
+    const response = await fetch(`${strapiUrl}/api/auth/reset-password`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        code: resetCode,
+        password: password,
+        passwordConfirmation: confirmPassword,
+      }),
+    });
+
+    const result = await response.json().catch(() => ({})) as StrapiResponse;
+
+    if (!response.ok) {
+      // Handle Strapi errors
+      let errorMessage = "Failed to reset password. The reset code may be invalid or expired.";
+      
+      if (result?.error?.message) {
+        errorMessage = result.error.message;
+      } else if (result?.error?.data?.[0]?.messages?.[0]?.message) {
+        errorMessage = result.error.data[0].messages[0].message;
+      } else if (result?.message) {
+        errorMessage = result.message;
+      }
+
+      console.error("Strapi reset password error:", {
+        status: response.status,
+        error: result,
+      });
+
+      return NextResponse.json(
+        { error: errorMessage },
+        { status: response.status || 400 }
+      );
+    }
+
+    // Password reset successful
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Password has been reset successfully. You can now login with your new password.",
+      },
+      { status: 200 }
+    );
   } catch (error) {
     console.error("Reset password confirm error:", error);
     return NextResponse.json(
-      { error: "Invalid or expired reset token. Please request a new one." },
-      { status: 400 }
+      { error: "An error occurred while resetting your password. Please try again." },
+      { status: 500 }
     );
   }
 }

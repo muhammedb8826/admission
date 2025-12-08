@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { strapiFetch } from "@/lib/strapi/client";
+import { getStrapiURL } from "@/lib/strapi/client";
 
 type StrapiResponse = {
-  message: string;
+  ok?: boolean;
+  message?: string;
+  error?: {
+    message?: string;
+    status?: number;
+  };
 };
 
 export async function POST(request: NextRequest) {
@@ -17,52 +22,51 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Call Strapi custom endpoint for password reset request
-    try {
-      const response = await strapiFetch<StrapiResponse>(
-        "almuni-registrations/request-password-reset",
-        {
-          method: "POST",
-          body: JSON.stringify({ email }),
-        }
+    // Validate email format
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json(
+        { error: "Invalid email address" },
+        { status: 400 }
       );
-
-      // Check if response has data (endpoint exists and worked)
-      if (response && 'message' in response) {
-        return NextResponse.json(
-          {
-            success: true,
-            message: response.message || "If an account exists with that email, a password reset link has been sent.",
-          },
-          { status: 200 }
-        );
-      }
-
-      // If response is empty, endpoint might not exist
-      throw new Error("Password reset endpoint not configured");
-    } catch (strapiError: unknown) {
-      // Check if it's a 405 or 404 error (endpoint doesn't exist)
-      const errorMessage = strapiError instanceof Error ? strapiError.message : String(strapiError);
-      if (errorMessage.includes("405") || errorMessage.includes("404")) {
-        console.error("Strapi password reset endpoint not found. Please add the custom routes in Strapi.");
-        // Still return success to user (security best practice - don't reveal if email exists)
-        return NextResponse.json(
-          {
-            success: true,
-            message: "If an account exists with that email, a password reset link has been sent.",
-          },
-          { status: 200 }
-        );
-      }
-      throw strapiError;
     }
-  } catch (error) {
-    console.error("Reset password error:", error);
-    // Always return success to prevent email enumeration
+
+    const strapiUrl = getStrapiURL();
+    if (!strapiUrl) {
+      return NextResponse.json(
+        { error: "Strapi API is not configured" },
+        { status: 500 }
+      );
+    }
+
+    // Call Strapi's built-in forgot password endpoint
+    // This sends an email with a reset code to the user
+    const response = await fetch(`${strapiUrl}/api/auth/forgot-password`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email: email.trim() }),
+    });
+
+    const result = await response.json().catch(() => ({})) as StrapiResponse;
+
+    // Strapi's forgot-password endpoint returns 200 even if email doesn't exist
+    // This is a security best practice to prevent email enumeration
+    // We'll always return success to the user
     return NextResponse.json(
       {
         success: true,
-        message: "If an account exists with that email, a password reset link has been sent.",
+        message: "If an account exists with that email, a password reset code has been sent.",
+      },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("Reset password error:", error);
+    // Always return success to prevent email enumeration (security best practice)
+    return NextResponse.json(
+      {
+        success: true,
+        message: "If an account exists with that email, a password reset code has been sent.",
       },
       { status: 200 }
     );
