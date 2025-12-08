@@ -2,26 +2,13 @@
 
 import * as React from "react"
 import {
-  IconCamera,
-  IconChartBar,
-  IconDashboard,
-  IconDatabase,
-  IconFileAi,
+  IconCalendar,
   IconFileDescription,
-  IconFileWord,
-  IconFolder,
-  IconHelp,
   IconInnerShadowTop,
-  IconListDetails,
-  IconReport,
-  IconSearch,
-  IconSettings,
-  IconUsers,
+  IconUser,
 } from "@tabler/icons-react"
 
-import { NavDocuments } from "@/components/nav-documents"
 import { NavMain } from "@/components/nav-main"
-import { NavSecondary } from "@/components/nav-secondary"
 import { NavUser } from "@/components/nav-user"
 import {
   Sidebar,
@@ -40,6 +27,21 @@ type SidebarUser = {
   initials?: string
 }
 
+function getInitials(name: string, email: string): string {
+  // Try to get initials from name first
+  if (name && name.trim()) {
+    const nameParts = name.trim().split(/\s+/)
+    if (nameParts.length >= 2) {
+      // Use first letter of first name and first letter of last name
+      return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase()
+    }
+    // Use first two letters of first name if only one word
+    return name.substring(0, 2).toUpperCase()
+  }
+  // Fallback to email initials
+  return email.substring(0, 2).toUpperCase()
+}
+
 const data = {
   user: {
     name: "shadcn",
@@ -48,111 +50,19 @@ const data = {
   },
   navMain: [
     {
-      title: "Dashboard",
-      url: "#",
-      icon: IconDashboard,
+      title: "Profile",
+      url: "/dashboard/profile",
+      icon: IconUser,
     },
     {
-      title: "Lifecycle",
-      url: "#",
-      icon: IconListDetails,
-    },
-    {
-      title: "Analytics",
-      url: "#",
-      icon: IconChartBar,
-    },
-    {
-      title: "Projects",
-      url: "#",
-      icon: IconFolder,
-    },
-    {
-      title: "Team",
-      url: "#",
-      icon: IconUsers,
-    },
-  ],
-  navClouds: [
-    {
-      title: "Capture",
-      icon: IconCamera,
-      isActive: true,
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Proposal",
+      title: "Application",
+      url: "/dashboard/application",
       icon: IconFileDescription,
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
     },
     {
-      title: "Prompts",
-      icon: IconFileAi,
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
-  ],
-  navSecondary: [
-    {
-      title: "Settings",
-      url: "#",
-      icon: IconSettings,
-    },
-    {
-      title: "Get Help",
-      url: "#",
-      icon: IconHelp,
-    },
-    {
-      title: "Search",
-      url: "#",
-      icon: IconSearch,
-    },
-  ],
-  documents: [
-    {
-      name: "Data Library",
-      url: "#",
-      icon: IconDatabase,
-    },
-    {
-      name: "Reports",
-      url: "#",
-      icon: IconReport,
-    },
-    {
-      name: "Word Assistant",
-      url: "#",
-      icon: IconFileWord,
+      title: "Calendar",
+      url: "/dashboard/calendar",
+      icon: IconCalendar,
     },
   ],
 }
@@ -181,7 +91,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
             >
               <a href="#">
                 <IconInnerShadowTop className="!size-5" />
-                <span className="text-base font-semibold">Acme Inc.</span>
+                <span className="text-base font-semibold">Admission</span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -189,8 +99,6 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={data.navMain} />
-        <NavDocuments items={data.documents} />
-        <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
         <NavUser
@@ -198,6 +106,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
             name: userData.name,
             email: userData.email,
             avatar: userData.avatar || "/avatars/shadcn.jpg",
+            initials: userData.initials || getInitials(userData.name, userData.email),
           }}
         />
       </SidebarFooter>
