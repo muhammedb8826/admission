@@ -17,6 +17,7 @@ const socialIcons: Record<string, React.ComponentType<{ className?: string }>> =
 };
 
 export function TopHeader({ data }: TopHeaderProps) {
+  console.log(data);
   return (
     <div className="hidden md:block border-b border-border bg-white text-(--brand-black)">
       <div className="container mx-auto px-4">

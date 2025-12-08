@@ -51,13 +51,29 @@ export interface StrapiGlobalResponse {
     };
     header: {
       id: number;
-      Logo?: StrapiMedia;
-      Menu?: Array<{
+      logo?: StrapiMedia;
+      menu?: Array<{
         id: number;
         title: string;
         url: string;
         isExternal?: boolean;
       }>;
+      subMenu?: Array<{
+        id: number;
+        title: string;
+        subMenu?: Array<{
+          id: number;
+          title: string;
+          url?: string;
+          isExternal?: boolean;
+        }>;
+      }>;
+      button?: {
+        id: number;
+        title: string;
+        url: string;
+        isExternal?: boolean;
+      };
     };
     footer?: {
       id: number;
@@ -131,7 +147,21 @@ export interface GlobalData {
     navigationLinks: Array<{
       label: string;
       url: string;
+      isExternal?: boolean;
     }>;
+    navigationGroups: Array<{
+      label: string;
+      links: Array<{
+        label: string;
+        url: string;
+        isExternal?: boolean;
+      }>;
+    }>;
+    ctaButton?: {
+      label: string;
+      url: string;
+      isExternal?: boolean;
+    };
   };
   footer: {
     copyRight?: string;

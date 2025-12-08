@@ -3,7 +3,7 @@ import { resolveImageUrl } from "@/lib/strapi/media";
 import { StrapiGlobalResponse, GlobalData } from "../types/global.types";
 
 export const EMPTY_GLOBAL_DATA: GlobalData = {
-  siteName: "DADU Alumni",
+  siteName: "DADU Admission",
   siteDescription: "",
   topHeader: {
     email: undefined,
@@ -13,6 +13,8 @@ export const EMPTY_GLOBAL_DATA: GlobalData = {
   header: {
     logo: undefined,
     navigationLinks: [],
+    navigationGroups: [],
+    ctaButton: undefined,
   },
   footer: {
     copyRight: "© DADU Alumni. All rights reserved.",
@@ -43,8 +45,14 @@ const GLOBAL_POPULATE = {
   },
   header: {
     populate: {
-      Logo: true,
-      Menu: true,
+      logo: true,
+      menu: true,
+      subMenu: {
+        populate: {
+          subMenu: true,
+        },
+      },
+      button: true,
     },
   },
   footer: {
@@ -137,19 +145,38 @@ export async function fetchGlobalData(): Promise<GlobalData> {
     },
     header: {
       logo: (() => {
-        if (!data.header?.Logo?.url) return undefined;
-        const resolvedUrl = resolveImageUrl(data.header.Logo, getStrapiURL());
+        if (!data.header?.logo?.url) return undefined;
+        const resolvedUrl = resolveImageUrl(data.header.logo, getStrapiURL());
         if (!resolvedUrl) return undefined;
         return {
           url: resolvedUrl,
-          alternativeText: data.header.Logo.alternativeText || undefined,
+          alternativeText: data.header.logo.alternativeText || undefined,
         };
       })(),
-      navigationLinks:
-        data.header?.Menu?.map((item) => ({
+      navigationLinks: [
+        ...(data.header?.menu?.map((item) => ({
           label: item.title,
           url: item.url,
+          isExternal: item.isExternal,
+        })) || []),
+      ],
+      navigationGroups:
+        data.header?.subMenu?.map((group) => ({
+          label: group.title,
+          links:
+            group.subMenu?.map((link) => ({
+              label: link.title,
+              url: link.url || "#",
+              isExternal: link.isExternal,
+            })) || [],
         })) || [],
+      ctaButton: data.header?.button
+        ? {
+            label: data.header.button.title,
+            url: data.header.button.url,
+            isExternal: data.header.button.isExternal,
+          }
+        : undefined,
     },
     footer: {
       copyRight: data.footer?.copyRight || "© DADU Alumni. All rights reserved.",
