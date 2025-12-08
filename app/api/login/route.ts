@@ -18,12 +18,12 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => null);
 
-    const email = body?.email as string | undefined;
+    const identifier = body?.identifier as string | undefined;
     const password = body?.password as string | undefined;
 
-    if (!email || !password) {
+    if (!identifier || !password) {
       return NextResponse.json(
-        { error: "Email and password are required" },
+        { error: "Username/email and password are required" },
         { status: 400 }
       );
     }
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        identifier: email, // Strapi uses 'identifier' which can be email or username
+        identifier: identifier.trim(), // Strapi uses 'identifier' which can be email or username
         password: password,
       }),
     });
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
       const errorMessage =
         result?.error?.message ||
         result?.message ||
-        "Invalid email or password";
+        "Invalid username/email or password";
       
       return NextResponse.json(
         { error: errorMessage },

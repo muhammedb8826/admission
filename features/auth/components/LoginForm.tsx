@@ -8,25 +8,22 @@ import { Eye, EyeOff } from "lucide-react";
 function LoginFormContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errors, setErrors] = useState<{ email?: string; password?: string; submit?: string }>({});
+  const [errors, setErrors] = useState<{ identifier?: string; password?: string; submit?: string }>({});
+  const isRegistered = searchParams.get("registered") === "true";
 
   const validate = () => {
-    const newErrors: { email?: string; password?: string; submit?: string } = {};
+    const newErrors: { identifier?: string; password?: string; submit?: string } = {};
 
-    if (!email.trim()) {
-      newErrors.email = "Email is required";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      newErrors.email = "Invalid email address";
+    if (!identifier.trim()) {
+      newErrors.identifier = "Username or email is required";
     }
 
     if (!password) {
       newErrors.password = "Password is required";
-    } else if (password.length < 8) {
-      newErrors.password = "Password must be at least 8 characters";
     }
 
     setErrors(newErrors);
@@ -51,7 +48,7 @@ function LoginFormContent() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ identifier: identifier.trim(), password }),
       });
 
       const result = await response.json().catch(() => ({}));
@@ -76,6 +73,13 @@ function LoginFormContent() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 rounded-xl border bg-card/60 p-6 shadow-sm">
+      {/* Success message */}
+      {isRegistered && (
+        <div className="rounded-md border border-emerald-500/50 bg-emerald-600/10 px-4 py-3 text-sm text-emerald-600 dark:text-emerald-400">
+          <p className="font-medium">Registration Successful!</p>
+          <p className="mt-1">Your account has been created. Please login to continue.</p>
+        </div>
+      )}
       {/* Inline error message */}
       {errors.submit && (
         <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -84,20 +88,20 @@ function LoginFormContent() {
         </div>
       )}
         <div className="space-y-1">
-          <label htmlFor="email" className="block text-sm font-medium">
-            Email Address <span className="text-destructive">*</span>
+          <label htmlFor="identifier" className="block text-sm font-medium">
+            Username or Email <span className="text-destructive">*</span>
           </label>
           <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            id="identifier"
+            type="text"
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
             className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            placeholder="you@example.com"
-            autoComplete="email"
+            placeholder="username or you@example.com"
+            autoComplete="username"
           />
-          {errors.email && (
-            <p className="mt-1 text-xs text-destructive">{errors.email}</p>
+          {errors.identifier && (
+            <p className="mt-1 text-xs text-destructive">{errors.identifier}</p>
           )}
         </div>
 

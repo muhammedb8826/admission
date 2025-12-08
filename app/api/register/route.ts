@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStrapiURL } from "@/lib/strapi/client";
-import { createSession } from "@/lib/auth/session";
 
 type StrapiAuthResponse = {
   jwt: string;
@@ -82,12 +81,7 @@ export async function POST(request: NextRequest) {
     const result = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      // Handle Strapi registration errors
-      // Strapi can return errors in different formats:
-      // - result.error.error.message (nested error structure)
-      // - result.error.message (single error)
-      // - result.error.data[0].messages[0].message (validation errors)
-      // - result.message (simple error)
+
       let errorMessage = "Registration failed. Please try again.";
       
       if (result?.error?.error?.message) {
@@ -120,17 +114,11 @@ export async function POST(request: NextRequest) {
 
     const authData = result as StrapiAuthResponse;
 
-    // Create session after successful registration
-    await createSession({
-      userId: String(authData.user.id),
-      email: authData.user.email,
-      firstName: authData.user.firstName || authData.user.username || "",
-    });
-
+    // Don't create session - user needs to login after registration
     return NextResponse.json(
       {
         success: true,
-        message: "Registration successful!",
+        message: "Registration successful! Please login to continue.",
         user: {
           id: authData.user.id,
           username: authData.user.username,

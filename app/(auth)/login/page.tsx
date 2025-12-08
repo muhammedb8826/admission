@@ -9,7 +9,7 @@ export default function LoginPage() {
           Welcome back
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Sign in with the email and password you used during registration.
+          Sign in with your username or email and password.
         </p>
       </div>
 

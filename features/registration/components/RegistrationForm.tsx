@@ -128,8 +128,8 @@ export function RegistrationForm() {
         throw new Error(errorMessage);
       }
 
-      // Redirect to dashboard after successful registration
-      router.push("/dashboard");
+      // Redirect to login page with success message
+      router.push("/login?registered=true");
       router.refresh();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Registration failed. Please try again.";
