@@ -70,7 +70,7 @@ export default async function DashboardPage() {
           {/* Main content */}
           <div className="flex flex-1 flex-col gap-6 px-4 py-6 lg:flex-row lg:px-8">
             {/* Left vertical menu */}
-            <aside className="w-full max-w-xs">
+            {/* <aside className="w-full max-w-xs">
               <div className="rounded-md border bg-background shadow-sm">
                 <nav className="flex flex-col text-sm">
                   {[
@@ -96,23 +96,24 @@ export default async function DashboardPage() {
                   ))}
                 </nav>
               </div>
-            </aside>
+            </aside> */}
 
             {/* Right profile form */}
+            
             <section className="flex-1">
               <div className="space-y-6 rounded-md border bg-background p-6 shadow-sm">
-                <div>
+                {/* <div>
                   <h2 className="text-lg font-semibold text-foreground">
                     Basic profile
                   </h2>
                   <p className="mt-1 text-sm text-muted-foreground">
                     Please update profile details here
                   </p>
-                </div>
+                </div> */}
 
-                <form className="space-y-8">
+                {/* <form className="space-y-8"> */}
                   {/* Name row */}
-                  <div className="grid gap-4 md:grid-cols-3">
+                  {/* <div className="grid gap-4 md:grid-cols-3">
                     <div className="space-y-1 md:col-span-1">
                       <label className="block text-sm font-medium text-foreground">
                         Name
@@ -141,10 +142,10 @@ export default async function DashboardPage() {
                         className="w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                       />
                     </div>
-                  </div>
+                  </div> */}
 
                   {/* About me */}
-                  <div className="space-y-1">
+                  {/* <div className="space-y-1">
                     <label className="block text-sm font-medium text-foreground">
                       About Me
                     </label>
@@ -155,9 +156,9 @@ export default async function DashboardPage() {
                     <p className="text-xs text-muted-foreground">
                       Max of 1000 characters
                     </p>
-                  </div>
+                  </div> */}
 
-                  <div className="flex flex-wrap items-center gap-3">
+                  {/* <div className="flex flex-wrap items-center gap-3">
                     <button
                       type="submit"
                       className="rounded-md bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
@@ -170,8 +171,8 @@ export default async function DashboardPage() {
                     >
                       Cancel and View Profile
                     </button>
-                  </div>
-                </form>
+                  </div> */}
+                {/* </form> */}
               </div>
             </section>
           </div>
