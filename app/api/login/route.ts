@@ -1,28 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
-import { strapiFetch } from "@/lib/strapi/client";
-import type { StrapiCollectionResponse } from "@/lib/strapi/types";
+import { getStrapiURL } from "@/lib/strapi/client";
 import { createSession } from "@/lib/auth/session";
 
-type StrapiRegistration = {
-  id: number;
-  firstName: string;
-  fatherName: string;
-  grandFatherName: string;
-  phoneNumber: string;
-  email: string;
-  birthDate: string;
-  gender?: number;
-  nationality?: number;
-  alumniCategory?: number;
-  jobTitle: string;
-  companyName: string;
-  address: string;
-  password: string;
-  supportDescription: string;
+type StrapiAuthResponse = {
+  jwt: string;
+  user: {
+    id: number;
+    username: string;
+    email: string;
+    firstName?: string;
+    lastName?: string;
+    [key: string]: unknown;
+  };
 };
-
-type StrapiRegistrationsResponse = StrapiCollectionResponse<StrapiRegistration>;
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,45 +28,48 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Look up registration by email in Strapi
-    const response = await strapiFetch<StrapiRegistrationsResponse>("almuni-registrations", {
-      params: {
-        filters: {
-          email: {
-            $eq: email,
-          },
-        },
-        pagination: {
-          page: 1,
-          pageSize: 1,
-        },
+    const strapiUrl = getStrapiURL();
+    if (!strapiUrl) {
+      return NextResponse.json(
+        { error: "Strapi API is not configured" },
+        { status: 500 }
+      );
+    }
+
+    // Call Strapi authentication endpoint
+    const response = await fetch(`${strapiUrl}/api/auth/local`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
       },
+      body: JSON.stringify({
+        identifier: email, // Strapi uses 'identifier' which can be email or username
+        password: password,
+      }),
     });
 
-    const user = response.data?.[0];
+    const result = await response.json().catch(() => ({}));
 
-    if (!user || !user.password) {
-      // Do not reveal whether email exists
+    if (!response.ok) {
+      // Handle Strapi authentication errors
+      const errorMessage =
+        result?.error?.message ||
+        result?.message ||
+        "Invalid email or password";
+      
       return NextResponse.json(
-        { error: "Invalid email or password" },
-        { status: 401 }
+        { error: errorMessage },
+        { status: response.status || 401 }
       );
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const authData = result as StrapiAuthResponse;
 
-    if (!isPasswordValid) {
-      return NextResponse.json(
-        { error: "Invalid email or password" },
-        { status: 401 }
-      );
-    }
-
-    // Create session
+    // Create session with user data from Strapi
     await createSession({
-      userId: String(user.id),
-      email: user.email,
-      firstName: user.firstName,
+      userId: String(authData.user.id),
+      email: authData.user.email,
+      firstName: authData.user.firstName || authData.user.username || "",
     });
 
     return NextResponse.json(
@@ -84,9 +77,9 @@ export async function POST(request: NextRequest) {
         success: true,
         message: "Login successful",
         user: {
-          id: user.id,
-          firstName: user.firstName,
-          email: user.email,
+          id: authData.user.id,
+          firstName: authData.user.firstName || authData.user.username,
+          email: authData.user.email,
         },
       },
       { status: 200 }

@@ -1,29 +1,19 @@
 import Link from "next/link";
-import { RegistrationForm, getGenderOptions, getNationalityOptions, getAlumniCategoryOptions } from "@/features/registration";
+import { RegistrationForm } from "@/features/registration";
 
-export default async function RegisterPage() {
-  const [genderOptions, nationalityOptions, alumniCategoryOptions] = await Promise.all([
-    getGenderOptions(),
-    getNationalityOptions(),
-    getAlumniCategoryOptions(),
-  ]);
-
+export default function RegisterPage() {
   return (
-    <div className="w-full max-w-4xl px-4 py-8">
+    <div className="w-full max-w-md px-4">
       <div className="mb-8 text-center">
         <h1 className="text-3xl font-bold tracking-tight text-foreground">
-          Register as Alumni
+          Create an account
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Join our alumni community and reconnect with fellow graduates.
+          Sign up with a username and email to get started.
         </p>
       </div>
 
-      <RegistrationForm
-        genderOptions={genderOptions}
-        nationalityOptions={nationalityOptions}
-        alumniCategoryOptions={alumniCategoryOptions}
-      />
+      <RegistrationForm />
 
       <div className="mt-6 text-center">
         <p className="text-sm text-muted-foreground">

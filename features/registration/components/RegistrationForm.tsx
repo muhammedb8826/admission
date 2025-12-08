@@ -1,45 +1,25 @@
 "use client";
 
 import { useState } from "react";
-import type { RegistrationFormData, DropdownOption } from "../types/registration.types";
+import { useRouter } from "next/navigation";
+import { Eye, EyeOff } from "lucide-react";
+import type { RegistrationFormData } from "../types/registration.types";
 
-type RegistrationFormProps = {
-  genderOptions: DropdownOption[];
-  nationalityOptions: DropdownOption[];
-  alumniCategoryOptions: DropdownOption[];
-};
-
-export function RegistrationForm({
-  genderOptions,
-  nationalityOptions,
-  alumniCategoryOptions,
-}: RegistrationFormProps) {
+export function RegistrationForm() {
+  const router = useRouter();
   const [formData, setFormData] = useState<RegistrationFormData>({
-    firstName: "",
-    fatherName: "",
-    grandFatherName: "",
-    phoneNumber: "",
+    username: "",
     email: "",
-    birthDate: "",
-    gender: "",
-    nationality: "",
-    alumniCategory: "",
-    jobTitle: "",
-    companyName: "",
-    address: "",
     password: "",
     confirmPassword: "",
-    supportDescription: "",
-    supportFile: null,
   });
 
-  const [errors, setErrors] = useState<Partial<Record<keyof RegistrationFormData, string>>>({});
+  const [errors, setErrors] = useState<Partial<Record<keyof RegistrationFormData | "submit", string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     // Clear error when user starts typing
@@ -48,51 +28,35 @@ export function RegistrationForm({
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
-    setFormData((prev) => ({ ...prev, supportFile: file }));
-  };
-
   const validate = (): boolean => {
-    const newErrors: Partial<Record<keyof RegistrationFormData, string>> = {};
+    const newErrors: Partial<Record<keyof RegistrationFormData | "submit", string>> = {};
 
-    // Personal Information validation
-    if (!formData.firstName.trim()) newErrors.firstName = "First name is required";
-    if (!formData.fatherName.trim()) newErrors.fatherName = "Father name is required";
-    if (!formData.grandFatherName.trim()) newErrors.grandFatherName = "Grand father name is required";
-    if (!formData.phoneNumber.trim()) newErrors.phoneNumber = "Phone number is required";
+    // Username validation
+    if (!formData.username.trim()) {
+      newErrors.username = "Username is required";
+    } else if (formData.username.length < 3) {
+      newErrors.username = "Username must be at least 3 characters";
+    }
+
+    // Email validation
     if (!formData.email.trim()) {
       newErrors.email = "Email is required";
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = "Invalid email address";
     }
-    if (!formData.birthDate) newErrors.birthDate = "Birth date is required";
-    if (!formData.gender) newErrors.gender = "Gender is required";
-    if (!formData.nationality) newErrors.nationality = "Nationality is required";
 
-    // Alumni Category validation
-    if (!formData.alumniCategory) newErrors.alumniCategory = "Alumni category is required";
-
-    // Employment Information validation
-    if (!formData.jobTitle.trim()) newErrors.jobTitle = "Job title is required";
-    if (!formData.companyName.trim()) newErrors.companyName = "Company name is required";
-    if (!formData.address.trim()) newErrors.address = "Address is required";
-
-    // Account Details validation
+    // Password validation
     if (!formData.password) {
       newErrors.password = "Password is required";
     } else if (formData.password.length < 8) {
       newErrors.password = "Password must be at least 8 characters";
     }
+
+    // Confirm password validation
     if (!formData.confirmPassword) {
       newErrors.confirmPassword = "Please confirm your password";
     } else if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = "Passwords do not match";
-    }
-
-    // Support validation
-    if (!formData.supportDescription.trim()) {
-      newErrors.supportDescription = "Please describe how you can support us";
     }
 
     setErrors(newErrors);
@@ -102,6 +66,11 @@ export function RegistrationForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Clear previous submit error
+    if (errors.submit) {
+      setErrors((prev) => ({ ...prev, submit: undefined }));
+    }
+
     if (!validate()) {
       return;
     }
@@ -109,463 +78,200 @@ export function RegistrationForm({
     setIsSubmitting(true);
 
     try {
-      // Create FormData for file upload
-      const submitData = new FormData();
-      
-      // Append all form fields
-      Object.entries(formData).forEach(([key, value]) => {
-        if (key === "supportFile" && value instanceof File) {
-          submitData.append(key, value);
-        } else if (key === "confirmPassword") {
-          // Don't send confirmPassword to server
-          return;
-        } else if (value !== null && value !== undefined) {
-          submitData.append(key, String(value));
-        }
-      });
-
       const response = await fetch("/api/register", {
         method: "POST",
-        body: submitData,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: formData.username,
+          email: formData.email,
+          password: formData.password,
+        }),
       });
 
-      const result = await response.json();
+      type ApiErrorResponse = {
+        error?: string;
+        message?: string;
+        details?: unknown;
+      };
 
-      if (!response.ok) {
-        throw new Error(result.error || "Registration failed");
+      let result: ApiErrorResponse = {};
+      
+      // Read response as text first (can only read body once)
+      const text = await response.text();
+      const contentType = response.headers.get("content-type");
+      
+      console.log("Registration response:", {
+        status: response.status,
+        statusText: response.statusText,
+        contentType,
+        textLength: text?.length,
+        textPreview: text?.substring(0, 200),
+      });
+      
+      if (text) {
+        if (contentType && contentType.includes("application/json")) {
+          try {
+            result = JSON.parse(text) as ApiErrorResponse;
+          } catch (jsonError) {
+            console.error("Failed to parse JSON:", jsonError, "Raw response:", text);
+            result = { message: text };
+          }
+        } else {
+          result = { message: text };
+        }
       }
 
-      // Handle success with toast
-      setToast({
-        type: "success",
-        message: "Registration submitted successfully! We'll be in touch soon.",
-      });
-      // Auto-hide after a few seconds
-      setTimeout(() => {
-        setToast(null);
-      }, 5000);
+      if (!response.ok) {
+        const errorMessage = result?.error || result?.message || "Registration failed. Please try again.";
+        throw new Error(errorMessage);
+      }
 
-      // Reset form
-      setFormData({
-        firstName: "",
-        fatherName: "",
-        grandFatherName: "",
-        phoneNumber: "",
-        email: "",
-        birthDate: "",
-        gender: "",
-        nationality: "",
-        alumniCategory: "",
-        jobTitle: "",
-        companyName: "",
-        address: "",
-        password: "",
-        confirmPassword: "",
-        supportDescription: "",
-        supportFile: null,
-      });
+      // Redirect to dashboard after successful registration
+      router.push("/dashboard");
+      router.refresh();
     } catch (error) {
-      console.error("Registration error:", error);
-      setToast({
-        type: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Registration failed. Please try again.",
-      });
-      setTimeout(() => {
-        setToast(null);
-      }, 5000);
-    } finally {
+      const errorMessage = error instanceof Error ? error.message : "Registration failed. Please try again.";
+      setErrors((prev) => ({
+        ...prev,
+        submit: errorMessage,
+      }));
       setIsSubmitting(false);
     }
   };
 
   return (
-    <>
-      {toast && (
-        <div
-          className={`fixed bottom-6 right-6 z-50 max-w-sm rounded-lg border px-4 py-3 text-sm shadow-lg transition
-          ${
-            toast.type === "success"
-              ? "border-emerald-500 bg-emerald-600 text-white"
-              : "border-destructive/80 bg-destructive text-destructive-foreground"
-          }`}
-        >
-          <div className="flex items-start gap-2">
-            <span className="mt-0.5 font-semibold">
-              {toast.type === "success" ? "Success" : "Error"}
-            </span>
-            <p className="flex-1 leading-snug">{toast.message}</p>
-            <button
-              type="button"
-              onClick={() => setToast(null)}
-              className="ml-2 text-xs underline hover:opacity-80"
-            >
-              Close
-            </button>
-          </div>
+    <form onSubmit={handleSubmit} className="space-y-6 rounded-xl border bg-card/60 p-6 shadow-sm">
+      {/* Error message */}
+      {errors.submit && (
+        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <p className="font-medium">Error</p>
+          <p className="mt-1">{errors.submit}</p>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-8">
-      {/* Personal Information */}
-      <section className="space-y-4">
-        <h2 className="text-2xl font-bold text-foreground border-b-2 border-primary pb-2">
-          Personal Information
-        </h2>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <label htmlFor="firstName" className="block text-sm font-medium mb-1">
-              First Name <span className="text-destructive">*</span>
-            </label>
-            <input
-              type="text"
-              id="firstName"
-              name="firstName"
-              value={formData.firstName}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-              required
-            />
-            {errors.firstName && (
-              <p className="text-xs text-destructive mt-1">{errors.firstName}</p>
-            )}
-          </div>
+      {/* Username */}
+      <div className="space-y-1">
+        <label htmlFor="username" className="block text-sm font-medium">
+          Username <span className="text-destructive">*</span>
+        </label>
+        <input
+          id="username"
+          type="text"
+          name="username"
+          value={formData.username}
+          onChange={handleChange}
+          className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          placeholder="johndoe"
+          autoComplete="username"
+          required
+        />
+        {errors.username && (
+          <p className="mt-1 text-xs text-destructive">{errors.username}</p>
+        )}
+      </div>
 
-          <div>
-            <label htmlFor="fatherName" className="block text-sm font-medium mb-1">
-              Father Name <span className="text-destructive">*</span>
-            </label>
-            <input
-              type="text"
-              id="fatherName"
-              name="fatherName"
-              value={formData.fatherName}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-              required
-            />
-            {errors.fatherName && (
-              <p className="text-xs text-destructive mt-1">{errors.fatherName}</p>
-            )}
-          </div>
+      {/* Email */}
+      <div className="space-y-1">
+        <label htmlFor="email" className="block text-sm font-medium">
+          Email Address <span className="text-destructive">*</span>
+        </label>
+        <input
+          id="email"
+          type="email"
+          name="email"
+          value={formData.email}
+          onChange={handleChange}
+          className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          placeholder="you@example.com"
+          autoComplete="email"
+          required
+        />
+        {errors.email && (
+          <p className="mt-1 text-xs text-destructive">{errors.email}</p>
+        )}
+      </div>
 
-          <div>
-            <label htmlFor="grandFatherName" className="block text-sm font-medium mb-1">
-              Grand Father Name <span className="text-destructive">*</span>
-            </label>
-            <input
-              type="text"
-              id="grandFatherName"
-              name="grandFatherName"
-              value={formData.grandFatherName}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-              required
-            />
-            {errors.grandFatherName && (
-              <p className="text-xs text-destructive mt-1">{errors.grandFatherName}</p>
-            )}
-          </div>
-
-          <div>
-            <label htmlFor="phoneNumber" className="block text-sm font-medium mb-1">
-              Phone Number <span className="text-destructive">*</span>
-            </label>
-            <input
-              type="tel"
-              id="phoneNumber"
-              name="phoneNumber"
-              value={formData.phoneNumber}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-              required
-            />
-            {errors.phoneNumber && (
-              <p className="text-xs text-destructive mt-1">{errors.phoneNumber}</p>
-            )}
-          </div>
-
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium mb-1">
-              Email Address <span className="text-destructive">*</span>
-            </label>
-            <input
-              type="email"
-              id="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-              required
-            />
-            {errors.email && (
-              <p className="text-xs text-destructive mt-1">{errors.email}</p>
-            )}
-          </div>
-
-          <div>
-            <label htmlFor="birthDate" className="block text-sm font-medium mb-1">
-              Birth Date <span className="text-destructive">*</span>
-            </label>
-            <input
-              type="date"
-              id="birthDate"
-              name="birthDate"
-              value={formData.birthDate}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-              required
-            />
-            {errors.birthDate && (
-              <p className="text-xs text-destructive mt-1">{errors.birthDate}</p>
-            )}
-          </div>
-
-          <div>
-            <label htmlFor="gender" className="block text-sm font-medium mb-1">
-              Gender <span className="text-destructive">*</span>
-            </label>
-            <select
-              id="gender"
-              name="gender"
-              value={formData.gender}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-              required
-            >
-              <option value="">Select Gender</option>
-              {genderOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            {errors.gender && (
-              <p className="text-xs text-destructive mt-1">{errors.gender}</p>
-            )}
-          </div>
-
-          <div>
-            <label htmlFor="nationality" className="block text-sm font-medium mb-1">
-              Nationality <span className="text-destructive">*</span>
-            </label>
-            <select
-              id="nationality"
-              name="nationality"
-              value={formData.nationality}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-              required
-            >
-              <option value="">Select Nationality</option>
-              {nationalityOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            {errors.nationality && (
-              <p className="text-xs text-destructive mt-1">{errors.nationality}</p>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* Alumni Category */}
-      <section className="space-y-4">
-        <h2 className="text-2xl font-bold text-foreground border-b-2 border-primary pb-2">
-          Alumni Category
-        </h2>
-        <div>
-          <label htmlFor="alumniCategory" className="block text-sm font-medium mb-1">
-            Category <span className="text-destructive">*</span>
-          </label>
-          <select
-            id="alumniCategory"
-            name="alumniCategory"
-            value={formData.alumniCategory}
-            onChange={handleChange}
-            className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-            required
-          >
-            <option value="">Select Category</option>
-            {alumniCategoryOptions.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          {errors.alumniCategory && (
-            <p className="text-xs text-destructive mt-1">{errors.alumniCategory}</p>
-          )}
-        </div>
-      </section>
-
-      {/* Employment Information */}
-      <section className="space-y-4">
-        <h2 className="text-2xl font-bold text-foreground border-b-2 border-primary pb-2">
-          Employment Information
-        </h2>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <label htmlFor="jobTitle" className="block text-sm font-medium mb-1">
-              Job Title <span className="text-destructive">*</span>
-            </label>
-            <input
-              type="text"
-              id="jobTitle"
-              name="jobTitle"
-              value={formData.jobTitle}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-              required
-            />
-            {errors.jobTitle && (
-              <p className="text-xs text-destructive mt-1">{errors.jobTitle}</p>
-            )}
-          </div>
-
-          <div>
-            <label htmlFor="companyName" className="block text-sm font-medium mb-1">
-              Company Name <span className="text-destructive">*</span>
-            </label>
-            <input
-              type="text"
-              id="companyName"
-              name="companyName"
-              value={formData.companyName}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-              required
-            />
-            {errors.companyName && (
-              <p className="text-xs text-destructive mt-1">{errors.companyName}</p>
-            )}
-          </div>
-
-          <div className="md:col-span-2">
-            <label htmlFor="address" className="block text-sm font-medium mb-1">
-              Address <span className="text-destructive">*</span>
-            </label>
-            <textarea
-              id="address"
-              name="address"
-              value={formData.address}
-              onChange={handleChange}
-              rows={3}
-              className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-              required
-            />
-            {errors.address && (
-              <p className="text-xs text-destructive mt-1">{errors.address}</p>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* Account Details */}
-      <section className="space-y-4">
-        <h2 className="text-2xl font-bold text-foreground border-b-2 border-primary pb-2">
-          Account Details
-        </h2>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium mb-1">
-              Password <span className="text-destructive">*</span>
-            </label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-              required
-            />
-            {errors.password && (
-              <p className="text-xs text-destructive mt-1">{errors.password}</p>
-            )}
-            <p className="text-xs text-muted-foreground mt-1">Minimum 8 characters</p>
-          </div>
-
-          <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium mb-1">
-              Confirm Password <span className="text-destructive">*</span>
-            </label>
-            <input
-              type="password"
-              id="confirmPassword"
-              name="confirmPassword"
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-              required
-            />
-            {errors.confirmPassword && (
-              <p className="text-xs text-destructive mt-1">{errors.confirmPassword}</p>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* How can you support us? */}
-      <section className="space-y-4">
-        <h2 className="text-2xl font-bold text-foreground border-b-2 border-primary pb-2">
-          How can you support us?
-        </h2>
-        <div>
-          <label htmlFor="supportDescription" className="block text-sm font-medium mb-1">
-            Description <span className="text-destructive">*</span>
-          </label>
-          <textarea
-            id="supportDescription"
-            name="supportDescription"
-            value={formData.supportDescription}
-            onChange={handleChange}
-            rows={5}
-            className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-            placeholder="Please describe how you can support our alumni community..."
-            required
-          />
-          {errors.supportDescription && (
-            <p className="text-xs text-destructive mt-1">{errors.supportDescription}</p>
-          )}
-        </div>
-
-        <div>
-          <label htmlFor="supportFile" className="block text-sm font-medium mb-1">
-            File Attachment (Optional)
-          </label>
+      {/* Password */}
+      <div className="space-y-1">
+        <label htmlFor="password" className="block text-sm font-medium">
+          Password <span className="text-destructive">*</span>
+        </label>
+        <div className="relative">
           <input
-            type="file"
-            id="supportFile"
-            name="supportFile"
-            onChange={handleFileChange}
-            className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
-            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+            id="password"
+            type={showPassword ? "text" : "password"}
+            name="password"
+            value={formData.password}
+            onChange={handleChange}
+            className="mt-1 w-full rounded-md border border-border px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            autoComplete="new-password"
+            required
           />
-          {formData.supportFile && (
-            <p className="text-xs text-muted-foreground mt-1">
-              Selected: {formData.supportFile.name}
-            </p>
-          )}
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            aria-label={showPassword ? "Hide password" : "Show password"}
+          >
+            {showPassword ? (
+              <EyeOff className="h-4 w-4" />
+            ) : (
+              <Eye className="h-4 w-4" />
+            )}
+          </button>
         </div>
-      </section>
+        {errors.password && (
+          <p className="mt-1 text-xs text-destructive">{errors.password}</p>
+        )}
+        <p className="mt-1 text-xs text-muted-foreground">
+          Minimum 8 characters
+        </p>
+      </div>
+
+      {/* Confirm Password */}
+      <div className="space-y-1">
+        <label htmlFor="confirmPassword" className="block text-sm font-medium">
+          Confirm Password <span className="text-destructive">*</span>
+        </label>
+        <div className="relative">
+          <input
+            id="confirmPassword"
+            type={showConfirmPassword ? "text" : "password"}
+            name="confirmPassword"
+            value={formData.confirmPassword}
+            onChange={handleChange}
+            className="mt-1 w-full rounded-md border border-border px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            autoComplete="new-password"
+            required
+          />
+          <button
+            type="button"
+            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+          >
+            {showConfirmPassword ? (
+              <EyeOff className="h-4 w-4" />
+            ) : (
+              <Eye className="h-4 w-4" />
+            )}
+          </button>
+        </div>
+        {errors.confirmPassword && (
+          <p className="mt-1 text-xs text-destructive">{errors.confirmPassword}</p>
+        )}
+      </div>
 
       {/* Submit Button */}
-      <div className="pt-6">
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="w-full md:w-auto px-8 py-3 bg-primary text-primary-foreground font-semibold rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isSubmitting ? "Registering..." : "Register"}
-        </button>
-      </div>
+      <button
+        type="submit"
+        disabled={isSubmitting}
+        className="w-full rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {isSubmitting ? "Registering..." : "Register"}
+      </button>
     </form>
-    </>
   );
 }
-
