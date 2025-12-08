@@ -130,14 +130,11 @@ export interface GlobalData {
       iconName?: string;
       iconData?: string;
     }>;
-    loginButton?: {
+    buttons: Array<{
       label: string;
       url: string;
-    };
-    registerButton?: {
-      label: string;
-      url: string;
-    };
+      isPrimary?: boolean;
+    }>;
   };
   header: {
     logo?: {

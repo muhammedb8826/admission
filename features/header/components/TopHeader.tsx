@@ -82,24 +82,21 @@ export function TopHeader({ data }: TopHeaderProps) {
               })}
             </div>
 
-            {/* Auth Buttons */}
+            {/* Dynamic Buttons */}
             <div className="ml-2 flex items-center gap-2">
-              {data.loginButton && (
+              {data.buttons.map((button, index) => (
                 <Link
-                  href={data.loginButton.url}
-                  className="rounded border border-(--brand-black)/15 px-4 py-1.5 text-sm font-medium text-(--brand-black) transition-colors hover:text-(--brand-accent)"
+                  key={`${button.url}-${index}`}
+                  href={button.url}
+                  className={
+                    button.isPrimary
+                      ? "rounded bg-(--brand-green) px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-(--brand-accent)"
+                      : "rounded border border-(--brand-black)/15 px-4 py-1.5 text-sm font-medium text-(--brand-black) transition-colors hover:text-(--brand-accent)"
+                  }
                 >
-                  {data.loginButton.label}
+                  {button.label}
                 </Link>
-              )}
-              {data.registerButton && (
-                <Link
-                  href={data.registerButton.url}
-                  className="rounded bg-(--brand-green) px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-(--brand-accent)"
-                >
-                  {data.registerButton.label}
-                </Link>
-              )}
+              ))}
             </div>
           </div>
         </div>

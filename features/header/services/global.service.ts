@@ -9,6 +9,7 @@ export const EMPTY_GLOBAL_DATA: GlobalData = {
     email: undefined,
     phone: undefined,
     socialLinks: [],
+    buttons: [],
   },
   header: {
     logo: undefined,
@@ -17,7 +18,7 @@ export const EMPTY_GLOBAL_DATA: GlobalData = {
     ctaButton: undefined,
   },
   footer: {
-    copyRight: "© DADU Alumni. All rights reserved.",
+    copyRight: "© DADU Admission. All rights reserved.",
     about: undefined,
     quickLinks: {
       title: undefined,
@@ -120,28 +121,15 @@ export async function fetchGlobalData(): Promise<GlobalData> {
             iconData: item.icon?.iconData,
           };
         }) || [],
-      loginButton: (() => {
-        const loginBtn = data.topHeader?.button?.find(
-          (btn) => btn.title?.toLowerCase().includes("login")
-        );
-        return loginBtn
-          ? {
-              label: loginBtn.title || "Login",
-              url: loginBtn.url || "#",
-            }
-          : undefined;
-      })(),
-      registerButton: (() => {
-        const registerBtn = data.topHeader?.button?.find(
-          (btn) => btn.title?.toLowerCase().includes("register")
-        );
-        return registerBtn
-          ? {
-              label: registerBtn.title || "Register",
-              url: registerBtn.url || "#",
-            }
-          : undefined;
-      })(),
+      buttons:
+        data.topHeader?.button?.map((btn) => ({
+          label: btn.title || "",
+          url: btn.url || "#",
+          // Mark primary button (usually the last one or one with specific keywords)
+          isPrimary: btn.title?.toLowerCase().includes("register") ||
+                     btn.title?.toLowerCase().includes("apply") ||
+                     false,
+        })) || [],
     },
     header: {
       logo: (() => {
@@ -179,7 +167,7 @@ export async function fetchGlobalData(): Promise<GlobalData> {
         : undefined,
     },
     footer: {
-      copyRight: data.footer?.copyRight || "© DADU Alumni. All rights reserved.",
+      copyRight: data.footer?.copyRight || "© DADU Admission. All rights reserved.",
       about: data.footer?.about
         ? {
             title: data.footer.about.title || undefined,

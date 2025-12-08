@@ -247,26 +247,22 @@ export function Header({ data, topHeaderData, siteName }: HeaderProps) {
                 </div>
               )}
 
-              {/* Auth Buttons */}
+              {/* Dynamic Buttons */}
               <div className="px-6 pb-6 flex gap-3">
-                {topHeaderData.loginButton && (
+                {topHeaderData.buttons.map((button, index) => (
                   <Link
-                    href={topHeaderData.loginButton.url}
-                    className="flex-1 rounded-lg bg-(--brand-black) px-4 py-3 text-center text-sm font-medium text-white transition-opacity hover:opacity-90"
+                    key={`${button.url}-${index}`}
+                    href={button.url}
+                    className={
+                      button.isPrimary
+                        ? "flex-1 rounded-lg bg-(--brand-green) px-4 py-3 text-center text-sm font-medium text-white transition-colors hover:bg-(--brand-accent)"
+                        : "flex-1 rounded-lg bg-(--brand-black) px-4 py-3 text-center text-sm font-medium text-white transition-opacity hover:opacity-90"
+                    }
                     onClick={() => setIsMenuOpen(false)}
                   >
-                    {topHeaderData.loginButton.label}
+                    {button.label}
                   </Link>
-                )}
-                {topHeaderData.registerButton && (
-                  <Link
-                    href={topHeaderData.registerButton.url}
-                    className="flex-1 rounded-lg bg-(--brand-green) px-4 py-3 text-center text-sm font-medium text-white transition-colors hover:bg-(--brand-accent)"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    {topHeaderData.registerButton.label}
-                  </Link>
-                )}
+                ))}
               </div>
             </div>
           </div>
