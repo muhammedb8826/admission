@@ -117,10 +117,17 @@ export async function POST(request: NextRequest) {
     const authData = result as StrapiAuthResponse;
 
     // Check if email confirmation is required
-    const isEmailConfirmed = authData.user.confirmed ?? true; // Default to true if not specified
+    // When email confirmation is enabled in Strapi:
+    // - New users have confirmed: false (explicitly set)
+    // - If confirmed field is undefined/missing, we default to requiring confirmation
+    //   (safe default when email confirmation is enabled)
+    // - Only if confirmed is explicitly true do we skip confirmation
+    const isEmailConfirmed = authData.user.confirmed === true;
     
-    // If email confirmation is enabled and user is not confirmed, send confirmation message
-    if (!isEmailConfirmed) {
+    // If confirmed is not explicitly true, assume confirmation is required
+    const requiresEmailConfirmation = !isEmailConfirmed;
+    
+    if (requiresEmailConfirmation) {
       return NextResponse.json(
         {
           success: true,
@@ -142,7 +149,7 @@ export async function POST(request: NextRequest) {
       {
         success: true,
         requiresConfirmation: false,
-        message: "Registration successful! Please login to continue.",
+        message: "Registration successful! Please check your email to confirm your account before logging in.",
         user: {
           id: authData.user.id,
           username: authData.user.username,

@@ -83,9 +83,15 @@ function LoginFormContent() {
     <form onSubmit={handleSubmit} className="space-y-6 rounded-xl border bg-card/60 p-6 shadow-sm">
       {/* Success message */}
       {isRegistered && !confirmationRequired && (
-        <div className="rounded-md border border-emerald-500/50 bg-emerald-600/10 px-4 py-3 text-sm text-emerald-600 dark:text-emerald-400">
+        <div className="rounded-md border border-amber-500/50 bg-amber-600/10 px-4 py-3 text-sm text-amber-600 dark:text-amber-400">
           <p className="font-medium">Registration Successful!</p>
-          <p className="mt-1">Your account has been created. Please login to continue.</p>
+          <p className="mt-1">Please check your email to confirm your account before logging in.</p>
+          <Link
+            href="/email-confirmation"
+            className="mt-2 inline-block text-xs font-medium underline hover:no-underline"
+          >
+            Resend confirmation email
+          </Link>
         </div>
       )}
       
