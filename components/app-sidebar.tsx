@@ -33,6 +33,13 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 
+type SidebarUser = {
+  name: string
+  email: string
+  avatar?: string
+  initials?: string
+}
+
 const data = {
   user: {
     name: "shadcn",
@@ -150,7 +157,19 @@ const data = {
   ],
 }
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
+  user?: SidebarUser
+}
+
+export function AppSidebar({ user, ...props }: AppSidebarProps) {
+  const fallbackUser = data.user
+  const userData: SidebarUser = {
+    name: user?.name || fallbackUser.name,
+    email: user?.email || fallbackUser.email,
+    avatar: user?.avatar || fallbackUser.avatar,
+    initials: user?.initials,
+  }
+
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -174,7 +193,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser
+          user={{
+            name: userData.name,
+            email: userData.email,
+            avatar: userData.avatar || "/avatars/shadcn.jpg",
+          }}
+        />
       </SidebarFooter>
     </Sidebar>
   )

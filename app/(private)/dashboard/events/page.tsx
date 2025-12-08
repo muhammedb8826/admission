@@ -35,16 +35,15 @@ export default async function EventsPage() {
 
   const tableData = events.map((event, index) => ({
     id: index + 1,
-    title: event.title,
+    header: event.title || "Untitled event",
+    type: "Event",
     status:
       event.startDate && new Date(event.startDate) > new Date()
         ? "Upcoming"
         : "Past",
-    startDate: event.startDate,
-    endDate: event.endDate,
-    location: event.location,
-    imageUrl: event.featuredImageUrl,
-    slug: event.slug,
+    target: event.startDate || "N/A",
+    limit: event.endDate || "N/A",
+    reviewer: event.location || "N/A",
   }));
 
   return (

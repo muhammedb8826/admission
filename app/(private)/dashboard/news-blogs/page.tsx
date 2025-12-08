@@ -37,13 +37,12 @@ export default async function NewsBlogsPage() {
 
   const tableData = news.map((item, index) => ({
     id: index + 1,
-    title: item.title,
+    header: item.title || "Untitled",
+    type: "News/Blog",
     status: "Published",
-    startDate: item.publishedDate,
-    endDate: undefined,
-    location: undefined,
-    imageUrl: item.featuredImageUrl,
-    slug: item.slug,
+    target: item.publishedDate || "N/A",
+    limit: "N/A",
+    reviewer: item.slug || "N/A",
   }));
 
   return (
@@ -72,13 +71,7 @@ export default async function NewsBlogsPage() {
               <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
                 <div className="px-4 lg:px-6">
                   <div className="mx-auto max-w-6xl">
-                    <DataTable
-                      data={tableData}
-                      initialColumnVisibility={{
-                        endDate: false,
-                        location: false,
-                      }}
-                    />
+                    <DataTable data={tableData} />
                   </div>
                 </div>
               </div>

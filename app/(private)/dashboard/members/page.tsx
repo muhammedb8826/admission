@@ -37,13 +37,12 @@ export default async function MembersPage() {
 
   const tableData = members.map((member, index) => ({
     id: index + 1,
-    title: member.fullName,
-    status: member.jobTitle ? "Employed" : "Member",
-    startDate: "",
-    endDate: undefined,
-    location: member.location,
-    imageUrl: member.profileImageUrl ?? undefined,
-    slug: member.slug,
+    header: member.fullName || "Member",
+    type: member.jobTitle ? "Employed" : "Member",
+    status: member.jobTitle ? "Active" : "Member",
+    target: member.jobTitle || "Role not provided",
+    limit: member.location || "Location not provided",
+    reviewer: member.slug || "Profile",
   }));
 
   return (
@@ -72,12 +71,7 @@ export default async function MembersPage() {
               <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
                 <div className="px-4 lg:px-6">
                   <div className="mx-auto max-w-6xl">
-                    <DataTable
-                      data={tableData}
-                      initialColumnVisibility={{
-                        endDate: false,
-                      }}
-                    />
+                    <DataTable data={tableData} />
                   </div>
                 </div>
               </div>
