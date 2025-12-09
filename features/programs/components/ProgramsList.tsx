@@ -63,9 +63,44 @@ export function ProgramsList({ programs, initialFilter = "all", showFilters = tr
       (p) =>
         p.title.toLowerCase().includes(query) ||
         p.description.toLowerCase().includes(query) ||
-        p.programGroup?.name.toLowerCase().includes(query)
+        (p.programGroup?.name && p.programGroup.name.toLowerCase().includes(query))
     );
   }, [typeFilteredPrograms, searchQuery]);
+
+  // Group programs by program group
+  const groupedPrograms = useMemo(() => {
+    const groups = new Map<
+      string,
+      { group: { number: number; name: string } | null; programs: Program[] }
+    >();
+
+    filteredPrograms.forEach((program) => {
+      const groupKey = program.programGroup
+        ? `group-${program.programGroup.number}`
+        : "ungrouped";
+      
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, {
+          group: program.programGroup
+            ? {
+                number: program.programGroup.number,
+                name: program.programGroup.name,
+              }
+            : null,
+          programs: [],
+        });
+      }
+      
+      groups.get(groupKey)!.programs.push(program);
+    });
+
+    // Sort groups by number, ungrouped last
+    return Array.from(groups.values()).sort((a, b) => {
+      if (!a.group) return 1;
+      if (!b.group) return -1;
+      return a.group.number - b.group.number;
+    });
+  }, [filteredPrograms]);
 
   const toggleProgram = (programId: number) => {
     setExpandedPrograms((prev) => {
@@ -138,7 +173,7 @@ export function ProgramsList({ programs, initialFilter = "all", showFilters = tr
         {searchQuery && ` matching "${searchQuery}"`}
       </div>
 
-      {/* Programs List - Accordion Style */}
+      {/* Programs List - Grouped by Program Group */}
       {filteredPrograms.length === 0 ? (
         <div className="rounded-xl border bg-card p-12 text-center">
           <p className="text-muted-foreground">
@@ -146,8 +181,21 @@ export function ProgramsList({ programs, initialFilter = "all", showFilters = tr
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {filteredPrograms.map((program) => {
+        <div className="space-y-8">
+          {groupedPrograms.map((groupData) => (
+            <div key={groupData.group ? `group-${groupData.group.number}` : "ungrouped"}>
+              {/* Group Header */}
+              {groupData.group && (
+                <div className="mb-4 pb-2 border-b border-border/50">
+                  <h2 className="text-lg font-semibold text-foreground">
+                    {groupData.group.number}: {groupData.group.name}
+                  </h2>
+                </div>
+              )}
+
+              {/* Programs in this group */}
+              <div className="space-y-4">
+                {groupData.programs.map((program) => {
             const imageUrl =
               program.image && baseUrl
                 ? resolveImageUrl(program.image, baseUrl)
@@ -180,26 +228,21 @@ export function ProgramsList({ programs, initialFilter = "all", showFilters = tr
                       <div className="h-24 w-full rounded-lg bg-linear-to-br from-primary/10 to-primary/5 md:h-28" />
                     )}
 
-                    {/* Program Summary */}
-                    <div className="space-y-2 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
-                          {program.type === "undergraduate" ? "Undergraduate" : "Graduate"}
-                        </span>
-                        {program.programGroup && (
-                          <span className="text-xs text-muted-foreground">
-                            {program.programGroup.name}
-                          </span>
-                        )}
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                          <span>{program.duration} {program.duration === 1 ? "year" : "years"}</span>
-                          <span>•</span>
-                          <span>{program.modeOfDelivery}</span>
-                        </div>
-                      </div>
-                      <h3 className="text-lg font-semibold text-foreground md:text-xl">
-                        {program.title}
-                      </h3>
+                     {/* Program Summary */}
+                     <div className="space-y-2 min-w-0">
+                       <div className="flex items-center gap-2 flex-wrap">
+                         <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+                           {program.type === "undergraduate" ? "Undergraduate" : "Graduate"}
+                         </span>
+                         <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                           <span>{program.duration} {program.duration === 1 ? "year" : "years"}</span>
+                           <span>•</span>
+                           <span>{program.modeOfDelivery}</span>
+                         </div>
+                       </div>
+                       <h3 className="text-lg font-semibold text-foreground md:text-xl">
+                         {program.title}
+                       </h3>
                       {!isExpanded && (
                         <p className="text-sm text-muted-foreground line-clamp-2">
                           {program.description}
@@ -229,8 +272,11 @@ export function ProgramsList({ programs, initialFilter = "all", showFilters = tr
                   </div>
                 )}
               </div>
-            );
-          })}
+                );
+              })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
