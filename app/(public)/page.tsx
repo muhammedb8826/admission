@@ -4,22 +4,33 @@ import {
   HomepageStoriesSection,
   HomepageNotableAlumni,
   HomepageNewsBlogs,
+  HowToApply,
   getHomepageCarouselItems,
   getHomepageWhyJoinSection,
   getHomepageStories,
   getHomepageNotableAlumni,
   getHomepageNewsBlogs,
+  getHowToApplySection,
 } from "@/features/homepage";
 import { HomepageGallery } from "@/features/homepage/components/HomepageGallery";
 import { getHomepageGallerySection } from "@/features/homepage/api/gallery.api";
 
 export default async function Home() {
-  const [carouselItems, whyJoinSection, storiesData, gallerySection, notableAlumniSection, newsBlogsSection] =
+  const [
+    carouselItems,
+    whyJoinSection,
+    storiesData,
+    gallerySection,
+    howToApplySection,
+    notableAlumniSection,
+    newsBlogsSection,
+  ] =
     await Promise.allSettled([
       getHomepageCarouselItems(),
       getHomepageWhyJoinSection(),
       getHomepageStories(),
       getHomepageGallerySection(),
+      getHowToApplySection(),
       getHomepageNotableAlumni(),
       getHomepageNewsBlogs(),
     ]);
@@ -29,6 +40,10 @@ export default async function Home() {
       <HomeCarousel
         items={carouselItems.status === "fulfilled" ? carouselItems.value : []}
       />
+   
+   
+
+
       <WhyYouShouldJoinSection
         section={whyJoinSection.status === "fulfilled" ? whyJoinSection.value : null}
       />
@@ -37,6 +52,9 @@ export default async function Home() {
       />
       <HomepageGallery
         section={gallerySection.status === "fulfilled" ? gallerySection.value : null}
+      />
+      <HowToApply
+        section={howToApplySection.status === "fulfilled" ? howToApplySection.value : null}
       />
       <HomepageNotableAlumni
         section={
