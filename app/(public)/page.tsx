@@ -1,13 +1,11 @@
 import {
   HomeCarousel,
   WhyYouShouldJoinSection,
-  HomepageStoriesSection,
   HomepageNotableAlumni,
   HomepageNewsBlogs,
   HowToApply,
   getHomepageCarouselItems,
   getHomepageWhyJoinSection,
-  getHomepageStories,
   getHomepageNotableAlumni,
   getHomepageNewsBlogs,
   getHowToApplySection,
@@ -19,7 +17,6 @@ export default async function Home() {
   const [
     carouselItems,
     whyJoinSection,
-    storiesData,
     gallerySection,
     howToApplySection,
     notableAlumniSection,
@@ -28,7 +25,6 @@ export default async function Home() {
     await Promise.allSettled([
       getHomepageCarouselItems(),
       getHomepageWhyJoinSection(),
-      getHomepageStories(),
       getHomepageGallerySection(),
       getHowToApplySection(),
       getHomepageNotableAlumni(),
@@ -46,9 +42,6 @@ export default async function Home() {
 
       <WhyYouShouldJoinSection
         section={whyJoinSection.status === "fulfilled" ? whyJoinSection.value : null}
-      />
-      <HomepageStoriesSection
-        data={storiesData.status === "fulfilled" ? storiesData.value : {}}
       />
       <HomepageGallery
         section={gallerySection.status === "fulfilled" ? gallerySection.value : null}
