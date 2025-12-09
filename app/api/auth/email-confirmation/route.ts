@@ -41,14 +41,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Call Strapi's built-in email confirmation endpoint
-    const response = await fetch(`${strapiUrl}/api/auth/email-confirmation`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ confirmation }),
-    });
+    // Call Strapi's built-in email confirmation endpoint.
+    // Strapi expects a GET with the confirmation code as a query param.
+    const response = await fetch(
+      `${strapiUrl}/api/auth/email-confirmation?confirmation=${encodeURIComponent(
+        confirmation
+      )}`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
 
     const result = await response.json().catch(() => ({})) as StrapiResponse;
 
