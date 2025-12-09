@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
       {
         success: true,
         requiresConfirmation: false,
-        message: "Registration successful! Please check your email to confirm your account before logging in.",
+        message: "Registration successful! Please login to continue.",
         user: {
           id: authData.user.id,
           username: authData.user.username,
