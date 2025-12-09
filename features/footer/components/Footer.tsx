@@ -72,8 +72,8 @@ export function Footer({ data, siteName, siteDescription }: FooterProps) {
                 const isInternal = href.startsWith("/");
 
                 const content = (
-                  <span className="flex items-center gap-2">
-                  <span className="text-(--brand-accent)">•</span>
+                  <span className="flex items-center gap-2 text-white/80">
+                    <span className="text-(--brand-accent)">•</span>
                     <span>{link.label}</span>
                   </span>
                 );
@@ -81,7 +81,10 @@ export function Footer({ data, siteName, siteDescription }: FooterProps) {
                 if (isInternal && !link.isExternal) {
                   return (
                     <li key={`quick-link-${link.label}-${href}`}>
-                      <Link href={href} className="transition-colors hover:text-(--brand-accent)">
+                      <Link
+                        href={href}
+                        className="text-white/80 transition-colors hover:text-(--brand-accent)"
+                      >
                         {content}
                       </Link>
                     </li>
@@ -94,7 +97,7 @@ export function Footer({ data, siteName, siteDescription }: FooterProps) {
                       href={href}
                       target={link.isExternal ? "_blank" : undefined}
                       rel={link.isExternal ? "noopener noreferrer" : undefined}
-                      className="transition-colors hover:text-(--brand-accent)"
+                      className="text-white/80 transition-colors hover:text-(--brand-accent)"
                     >
                       {content}
                     </a>
@@ -121,11 +124,14 @@ export function Footer({ data, siteName, siteDescription }: FooterProps) {
                 <div key={`contact-${contact.label}-${index}`} className="flex items-start gap-3">
                   <IconMarkup svg={contact.iconData} />
                   {contact.url ? (
-                    <a href={normalizeHref(contact.url)} className="transition-colors hover:text-(--brand-accent)">
+                    <a
+                      href={normalizeHref(contact.url)}
+                      className="text-white/80 transition-colors hover:text-(--brand-accent)"
+                    >
                       {contact.label || contact.url}
                     </a>
                   ) : (
-                    <span>{contact.label}</span>
+                    <span className="text-white/80">{contact.label}</span>
                   )}
                 </div>
               ))}
