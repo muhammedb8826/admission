@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronLeft, ChevronRight, CheckCircle2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, CheckCircle2, Loader2 } from "lucide-react";
 
 type StudentProfileFormData = {
   // Page 1: Choose Term
@@ -75,8 +75,11 @@ const TOTAL_PAGES = 7;
 export function StudentApplicationForm() {
   const [currentPage, setCurrentPage] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [profileId, setProfileId] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [formData, setFormData] = useState<StudentProfileFormData>({
     semester: "",
@@ -123,11 +126,125 @@ export function StudentApplicationForm() {
     documentsSubmitted: false,
   });
 
+  // Load existing profile data on mount
+  useEffect(() => {
+    const loadExistingProfile = async () => {
+      try {
+        const response = await fetch("/api/student-profiles?populate=*");
+        if (response.ok) {
+          const result = await response.json();
+          if (result?.data) {
+            const profile = result.data;
+            setProfileId(profile.id);
+            
+            // Populate form with existing data
+            setFormData({
+              semester: profile.semester || "",
+              programLevel: profile.programLevel || "",
+              programType: profile.programType || "",
+              firstNameEn: profile.firstNameEn || "",
+              firstNameAm: profile.firstNameAm || "",
+              fatherNameEn: profile.fatherNameEn || "",
+              fatherNameAm: profile.fatherNameAm || "",
+              grandFatherNameEn: profile.grandFatherNameEn || "",
+              grandFatherNameAm: profile.grandFatherNameAm || "",
+              dateOfBirth: profile.dateOfBirth || "",
+              natioanalId: profile.natioanalId || "",
+              phoneNumber: profile.phoneNumber || "",
+              emergencyPhoneNumber: profile.emergencyPhoneNumber || "",
+              maritalStatus: profile.maritalStatus || "",
+              gender: profile.gender || "",
+              residentialKebele: profile.residentialKebele || "",
+              birthKebele: profile.birthKebele || "",
+              ptbcFullName: profile.ptbcFullName || "",
+              ptbcKebele: profile.ptbcKebele || "",
+              ptbcPhone: profile.ptbcPhone || "",
+              ptbcAltPhone: profile.ptbcAltPhone || "",
+              specialNeed: profile.specialNeed || "",
+              specialNeedDescription: profile.specialNeedDescription || "",
+              birthCountry: profile.birthCountry || "",
+              birthRegion: profile.birthRegion || "",
+              birthZone: profile.birthZone || "",
+              birthWoreda: profile.birthWoreda || "",
+              residentialCountry: profile.residentialCountry || "",
+              residentialRegion: profile.residentialRegion || "",
+              residentialZone: profile.residentialZone || "",
+              residentialWoreda: profile.residentialWoreda || "",
+              ptbcCountry: profile.ptbcCountry || "",
+              ptbcRegion: profile.ptbcRegion || "",
+              ptbcZone: profile.ptbcZone || "",
+              previousSchool: profile.previousSchool || "",
+              graduationYear: profile.graduationYear || "",
+              gpa: profile.gpa || "",
+              fieldOfStudy: profile.fieldOfStudy || "",
+              preferredProgram: profile.preferredProgram || "",
+              paymentMethod: profile.paymentMethod || "",
+              paymentReference: profile.paymentReference || "",
+              documentsSubmitted: profile.documentsSubmitted || false,
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Error loading profile:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadExistingProfile();
+  }, []);
+
   const handleInputChange = (field: keyof StudentProfileFormData, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleNext = () => {
+  // Save current page data
+  const saveCurrentPage = async () => {
+    setIsSaving(true);
+    setSubmitError(null);
+
+    try {
+      const payload = {
+        ...formData,
+        studentType: "undergraduate",
+        applicationStatus: profileId ? "pending" : "draft", // Draft if not yet submitted
+      };
+
+      const url = "/api/student-profiles";
+      const method = profileId ? "PUT" : "POST";
+      const body = profileId 
+        ? { data: { id: profileId, ...payload } }
+        : { data: payload };
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: "Failed to save" }));
+        throw new Error(error.error || "Failed to save");
+      }
+
+      const result = await response.json();
+      if (result?.data?.id && !profileId) {
+        setProfileId(result.data.id);
+      }
+    } catch (error) {
+      console.error("Error saving:", error);
+      // Don't show error for auto-save, just log it
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleNext = async () => {
+    // Save current page before moving to next
+    await saveCurrentPage();
+    
     if (currentPage < TOTAL_PAGES) {
       setCurrentPage((prev) => prev + 1);
     }
@@ -144,23 +261,35 @@ export function StudentApplicationForm() {
     setSubmitError(null);
 
     try {
-      const response = await fetch("/api/student-profiles", {
-        method: "POST",
+      // Final save with pending status
+      const payload = {
+        ...formData,
+        studentType: "undergraduate",
+        applicationStatus: "pending",
+      };
+
+      const url = "/api/student-profiles";
+      const method = profileId ? "PUT" : "POST";
+      const body = profileId 
+        ? { data: { id: profileId, ...payload } }
+        : { data: payload };
+
+      const response = await fetch(url, {
+        method,
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          data: {
-            ...formData,
-            studentType: "undergraduate",
-            applicationStatus: "pending",
-          },
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: "Failed to submit application" }));
         throw new Error(error.error || "Failed to submit application");
+      }
+
+      const result = await response.json();
+      if (result?.data?.id && !profileId) {
+        setProfileId(result.data.id);
       }
 
       setSubmitSuccess(true);
@@ -862,32 +991,66 @@ export function StudentApplicationForm() {
 
         <div className="min-h-[400px]">{renderCurrentPage()}</div>
 
-        <div className="flex justify-between mt-8 pt-6 border-t">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handlePrevious}
-            disabled={currentPage === 1}
-          >
-            <ChevronLeft className="mr-2 h-4 w-4" />
-            Previous
-          </Button>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <span className="ml-2 text-sm text-muted-foreground">Loading your application...</span>
+          </div>
+        ) : (
+          <>
+            <div className="flex justify-between mt-8 pt-6 border-t">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handlePrevious}
+                disabled={currentPage === 1 || isSaving}
+              >
+                <ChevronLeft className="mr-2 h-4 w-4" />
+                Previous
+              </Button>
 
-          {currentPage < TOTAL_PAGES ? (
-            <Button type="button" onClick={handleNext}>
-              Next
-              <ChevronRight className="ml-2 h-4 w-4" />
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              onClick={handleSubmit}
-              disabled={isSubmitting || submitSuccess}
-            >
-              {isSubmitting ? "Submitting..." : "Submit Application"}
-            </Button>
-          )}
-        </div>
+              {currentPage < TOTAL_PAGES ? (
+                <Button 
+                  type="button" 
+                  onClick={handleNext}
+                  disabled={isSaving}
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      Save & Continue
+                      <ChevronRight className="ml-2 h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={isSubmitting || submitSuccess}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    "Submit Application"
+                  )}
+                </Button>
+              )}
+            </div>
+            {isSaving && (
+              <p className="text-xs text-muted-foreground text-center mt-2">
+                Your progress is being saved...
+              </p>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

@@ -194,3 +194,80 @@ export async function GET(request: NextRequest) {
   }
 }
 
+export async function PUT(request: NextRequest) {
+  try {
+    const session = await getSession();
+
+    if (!session) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json().catch(() => null);
+
+    if (!body || !body.data) {
+      return NextResponse.json(
+        { error: "Invalid request body" },
+        { status: 400 }
+      );
+    }
+
+    const { id, ...updateData } = body.data;
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Profile ID is required for update" },
+        { status: 400 }
+      );
+    }
+
+    const strapiUrl = getStrapiURL();
+    if (!strapiUrl) {
+      return NextResponse.json(
+        { error: "Strapi API is not configured" },
+        { status: 500 }
+      );
+    }
+
+    const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
+
+    // Update the profile
+    const response = await fetch(`${strapiUrl}/api/student-profiles/${id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        ...(apiToken && { Authorization: `Bearer ${apiToken}` }),
+      },
+      body: JSON.stringify({
+        data: updateData,
+      }),
+    });
+
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const errorMessage =
+        result?.error?.message ||
+        result?.message ||
+        "Failed to update student profile";
+      
+      return NextResponse.json(
+        { error: errorMessage },
+        { status: response.status || 500 }
+      );
+    }
+
+    return NextResponse.json(result, { status: 200 });
+  } catch (error) {
+    console.error("Student profile update error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Failed to update student profile";
+    
+    return NextResponse.json(
+      { error: errorMessage },
+      { status: 500 }
+    );
+  }
+}
+
