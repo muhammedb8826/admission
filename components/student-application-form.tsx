@@ -39,19 +39,19 @@ type StudentProfileFormData = {
   ptbcKebele: string;
   ptbcPhone: string;
   ptbcAltPhone: string;
-  specialNeed: string;
+  specialNeed: boolean;
   specialNeedDescription: string;
-  birthCountry: string;
-  birthRegion: string;
-  birthZone: string;
-  birthWoreda: string;
-  residentialCountry: string;
-  residentialRegion: string;
-  residentialZone: string;
-  residentialWoreda: string;
-  ptbcCountry: string;
-  ptbcRegion: string;
-  ptbcZone: string;
+  birthCountry: number | null;
+  birthRegion: number | null;
+  birthZone: number | null;
+  birthWoreda: number | null;
+  residentialCountry: number | null;
+  residentialRegion: number | null;
+  residentialZone: number | null;
+  residentialWoreda: number | null;
+  ptbcCountry: number | null;
+  ptbcRegion: number | null;
+  ptbcZone: number | null;
   
   // Page 3: School Info (placeholder fields)
   previousSchool: string;
@@ -72,6 +72,29 @@ type StudentProfileFormData = {
 
 const TOTAL_PAGES = 7;
 
+type Country = {
+  id: number;
+  name: string;
+  regions?: Region[];
+};
+
+type Region = {
+  id: number;
+  name: string;
+  zones?: Zone[];
+};
+
+type Zone = {
+  id: number;
+  name: string;
+  woredas?: Woreda[];
+};
+
+type Woreda = {
+  id: number;
+  name: string;
+};
+
 export function StudentApplicationForm() {
   const [currentPage, setCurrentPage] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -80,6 +103,22 @@ export function StudentApplicationForm() {
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [profileId, setProfileId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Location data state
+  const [countries, setCountries] = useState<Country[]>([]);
+  
+  // Separate state for each location type
+  const [birthRegions, setBirthRegions] = useState<Region[]>([]);
+  const [birthZones, setBirthZones] = useState<Zone[]>([]);
+  const [birthWoredas, setBirthWoredas] = useState<Woreda[]>([]);
+  
+  const [residentialRegions, setResidentialRegions] = useState<Region[]>([]);
+  const [residentialZones, setResidentialZones] = useState<Zone[]>([]);
+  const [residentialWoredas, setResidentialWoredas] = useState<Woreda[]>([]);
+  
+  const [ptbcRegions, setPtbcRegions] = useState<Region[]>([]);
+  const [ptbcZones, setPtbcZones] = useState<Zone[]>([]);
+  const [ptbcWoredas, setPtbcWoredas] = useState<Woreda[]>([]);
 
   const [formData, setFormData] = useState<StudentProfileFormData>({
     semester: "",
@@ -103,19 +142,19 @@ export function StudentApplicationForm() {
     ptbcKebele: "",
     ptbcPhone: "",
     ptbcAltPhone: "",
-    specialNeed: "",
+    specialNeed: false,
     specialNeedDescription: "",
-    birthCountry: "",
-    birthRegion: "",
-    birthZone: "",
-    birthWoreda: "",
-    residentialCountry: "",
-    residentialRegion: "",
-    residentialZone: "",
-    residentialWoreda: "",
-    ptbcCountry: "",
-    ptbcRegion: "",
-    ptbcZone: "",
+    birthCountry: null,
+    birthRegion: null,
+    birthZone: null,
+    birthWoreda: null,
+    residentialCountry: null,
+    residentialRegion: null,
+    residentialZone: null,
+    residentialWoreda: null,
+    ptbcCountry: null,
+    ptbcRegion: null,
+    ptbcZone: null,
     previousSchool: "",
     graduationYear: "",
     gpa: "",
@@ -160,19 +199,20 @@ export function StudentApplicationForm() {
               ptbcKebele: profile.ptbcKebele || "",
               ptbcPhone: profile.ptbcPhone || "",
               ptbcAltPhone: profile.ptbcAltPhone || "",
-              specialNeed: profile.specialNeed || "",
+              specialNeed: profile.specialNeed || false,
               specialNeedDescription: profile.specialNeedDescription || "",
-              birthCountry: profile.birthCountry || "",
-              birthRegion: profile.birthRegion || "",
-              birthZone: profile.birthZone || "",
-              birthWoreda: profile.birthWoreda || "",
-              residentialCountry: profile.residentialCountry || "",
-              residentialRegion: profile.residentialRegion || "",
-              residentialZone: profile.residentialZone || "",
-              residentialWoreda: profile.residentialWoreda || "",
-              ptbcCountry: profile.ptbcCountry || "",
-              ptbcRegion: profile.ptbcRegion || "",
-              ptbcZone: profile.ptbcZone || "",
+              // Extract IDs from relation objects
+              birthCountry: typeof profile.birthCountry === 'object' ? profile.birthCountry?.id : profile.birthCountry || null,
+              birthRegion: typeof profile.birthRegion === 'object' ? profile.birthRegion?.id : profile.birthRegion || null,
+              birthZone: typeof profile.birthZone === 'object' ? profile.birthZone?.id : profile.birthZone || null,
+              birthWoreda: typeof profile.birthWoreda === 'object' ? profile.birthWoreda?.id : profile.birthWoreda || null,
+              residentialCountry: typeof profile.residentialCountry === 'object' ? profile.residentialCountry?.id : profile.residentialCountry || null,
+              residentialRegion: typeof profile.residentialRegion === 'object' ? profile.residentialRegion?.id : profile.residentialRegion || null,
+              residentialZone: typeof profile.residentialZone === 'object' ? profile.residentialZone?.id : profile.residentialZone || null,
+              residentialWoreda: typeof profile.residentialWoreda === 'object' ? profile.residentialWoreda?.id : profile.residentialWoreda || null,
+              ptbcCountry: typeof profile.ptbcCountry === 'object' ? profile.ptbcCountry?.id : profile.ptbcCountry || null,
+              ptbcRegion: typeof profile.ptbcRegion === 'object' ? profile.ptbcRegion?.id : profile.ptbcRegion || null,
+              ptbcZone: typeof profile.ptbcZone === 'object' ? profile.ptbcZone?.id : profile.ptbcZone || null,
               previousSchool: profile.previousSchool || "",
               graduationYear: profile.graduationYear || "",
               gpa: profile.gpa || "",
@@ -194,7 +234,7 @@ export function StudentApplicationForm() {
     loadExistingProfile();
   }, []);
 
-  const handleInputChange = (field: keyof StudentProfileFormData, value: string | boolean) => {
+  const handleInputChange = (field: keyof StudentProfileFormData, value: string | boolean | number | null) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -204,10 +244,62 @@ export function StudentApplicationForm() {
     setSubmitError(null);
 
     try {
+      // Clean form data - handle relations and remove empty values
+      const relationFields = [
+        'birthCountry', 'birthRegion', 'birthZone', 'birthWoreda',
+        'residentialCountry', 'residentialRegion', 'residentialZone', 'residentialWoreda',
+        'ptbcCountry', 'ptbcRegion', 'ptbcZone'
+      ];
+      
+      // Fields that should not be sent to Strapi (not in schema)
+      const excludedFields = ['documentsSubmitted'];
+      
+      const cleanFormData = Object.entries(formData).reduce((acc, [key, value]) => {
+        // Skip excluded fields
+        if (excludedFields.includes(key)) {
+          return acc;
+        }
+        
+        // Handle relation fields - only include if they have a valid number ID
+        if (relationFields.includes(key)) {
+          if (value !== null && value !== undefined) {
+            const numValue = typeof value === 'number' ? value : Number(value);
+            if (!isNaN(numValue) && numValue > 0) {
+              acc[key] = numValue;
+            }
+          }
+          return acc;
+        }
+        
+        // Keep boolean values (including false)
+        if (typeof value === 'boolean') {
+          acc[key] = value;
+          return acc;
+        }
+        
+        // Skip null, undefined, and empty strings for other fields
+        if (value === null || value === undefined || value === "") {
+          return acc;
+        }
+        
+        // Keep other non-empty values
+        acc[key] = value;
+        return acc;
+      }, {} as Record<string, any>);
+
+      // Determine studentType based on programLevel enum values
+      const getStudentType = (programLevel: string): "undergraduate" | "graduate" => {
+        if (programLevel === "Undergraduate(UG)") {
+          return "undergraduate";
+        }
+        // Postgraduate(PG) and PGDT are both graduate
+        return "graduate";
+      };
+
       const payload = {
-        ...formData,
-        studentType: "undergraduate",
-        applicationStatus: profileId ? "pending" : "draft", // Draft if not yet submitted
+        ...cleanFormData,
+        studentType: getStudentType(formData.programLevel || ""),
+        applicationStatus: "pending", // Use "pending" for saves (enum: pending, submitted, reviewing, accepted, rejected)
       };
 
       const url = "/api/student-profiles";
@@ -224,18 +316,33 @@ export function StudentApplicationForm() {
         body: JSON.stringify(body),
       });
 
+      const result = await response.json();
+
       if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: "Failed to save" }));
-        throw new Error(error.error || "Failed to save");
+        const errorMessage = 
+          result?.error?.message || 
+          result?.error || 
+          result?.message || 
+          "Failed to save";
+        console.error("Save error:", errorMessage, result);
+        setSubmitError(errorMessage);
+        throw new Error(errorMessage);
       }
 
-      const result = await response.json();
-      if (result?.data?.id && !profileId) {
-        setProfileId(result.data.id);
+      // Handle Strapi response format - data might be nested
+      const profileData = result?.data?.data || result?.data;
+      
+      if (profileData?.id && !profileId) {
+        setProfileId(profileData.id);
+        console.log("Profile created with ID:", profileData.id);
+      } else if (profileId) {
+        console.log("Profile updated successfully");
       }
     } catch (error) {
       console.error("Error saving:", error);
-      // Don't show error for auto-save, just log it
+      const errorMessage = error instanceof Error ? error.message : "Failed to save. Please try again.";
+      setSubmitError(errorMessage);
+      // Don't prevent navigation, but show error
     } finally {
       setIsSaving(false);
     }
@@ -261,11 +368,30 @@ export function StudentApplicationForm() {
     setSubmitError(null);
 
     try {
-      // Final save with pending status
+      // Determine studentType based on programLevel enum values
+      const getStudentType = (programLevel: string): "undergraduate" | "graduate" => {
+        if (programLevel === "Undergraduate(UG)") {
+          return "undergraduate";
+        }
+        // Postgraduate(PG) and PGDT are both graduate
+        return "graduate";
+      };
+
+      // Exclude fields that are not in Strapi schema
+      const excludedFields = ['documentsSubmitted'];
+      const cleanedFormData = Object.entries(formData).reduce((acc, [key, value]) => {
+        if (excludedFields.includes(key)) {
+          return acc;
+        }
+        acc[key] = value;
+        return acc;
+      }, {} as Record<string, any>);
+
+      // Final submission with submitted status
       const payload = {
-        ...formData,
-        studentType: "undergraduate",
-        applicationStatus: "pending",
+        ...cleanedFormData,
+        studentType: getStudentType(formData.programLevel || ""),
+        applicationStatus: "submitted", // Final submission uses "submitted" status
       };
 
       const url = "/api/student-profiles";
@@ -338,6 +464,7 @@ export function StudentApplicationForm() {
             <SelectContent>
               <SelectItem value="Undergraduate(UG)">Undergraduate (UG)</SelectItem>
               <SelectItem value="Postgraduate(PG)">Postgraduate (PG)</SelectItem>
+              <SelectItem value="PGDT">PGDT</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -354,7 +481,6 @@ export function StudentApplicationForm() {
             <SelectContent>
               <SelectItem value="Regular">Regular</SelectItem>
               <SelectItem value="Extension">Extension</SelectItem>
-              <SelectItem value="Distance">Distance</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -518,39 +644,104 @@ export function StudentApplicationForm() {
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="birthCountry">Country</Label>
-              <Input
-                id="birthCountry"
-                value={formData.birthCountry}
-                onChange={(e) => handleInputChange("birthCountry", e.target.value)}
-                placeholder="Enter country"
-              />
+              <Select
+                value={formData.birthCountry ? String(formData.birthCountry) : ""}
+                onValueChange={async (value) => {
+                  const countryId = Number(value);
+                  handleInputChange("birthCountry", countryId);
+                  handleInputChange("birthRegion", null);
+                  handleInputChange("birthZone", null);
+                  handleInputChange("birthWoreda", null);
+                  if (countryId) {
+                    await fetchRegions(countryId, 'birth');
+                  }
+                }}
+              >
+                <SelectTrigger id="birthCountry" className="w-full">
+                  <SelectValue placeholder="Select country" />
+                </SelectTrigger>
+                <SelectContent>
+                  {countries.map((country) => (
+                    <SelectItem key={country.id} value={String(country.id)}>
+                      {country.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="birthRegion">Region</Label>
-              <Input
-                id="birthRegion"
-                value={formData.birthRegion}
-                onChange={(e) => handleInputChange("birthRegion", e.target.value)}
-                placeholder="Enter region"
-              />
+              <Select
+                value={formData.birthRegion ? String(formData.birthRegion) : ""}
+                onValueChange={async (value) => {
+                  const regionId = Number(value);
+                  handleInputChange("birthRegion", regionId);
+                  handleInputChange("birthZone", null);
+                  handleInputChange("birthWoreda", null);
+                  if (regionId) {
+                    await fetchZones(regionId, 'birth');
+                  }
+                }}
+                disabled={!formData.birthCountry}
+              >
+                <SelectTrigger id="birthRegion" className="w-full">
+                  <SelectValue placeholder="Select region" />
+                </SelectTrigger>
+                <SelectContent>
+                  {birthRegions.map((region) => (
+                    <SelectItem key={region.id} value={String(region.id)}>
+                      {region.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="birthZone">Zone</Label>
-              <Input
-                id="birthZone"
-                value={formData.birthZone}
-                onChange={(e) => handleInputChange("birthZone", e.target.value)}
-                placeholder="Enter zone"
-              />
+              <Select
+                value={formData.birthZone ? String(formData.birthZone) : ""}
+                onValueChange={async (value) => {
+                  const zoneId = Number(value);
+                  handleInputChange("birthZone", zoneId);
+                  handleInputChange("birthWoreda", null);
+                  if (zoneId) {
+                    await fetchWoredas(zoneId, 'birth');
+                  }
+                }}
+                disabled={!formData.birthRegion}
+              >
+                <SelectTrigger id="birthZone" className="w-full">
+                  <SelectValue placeholder="Select zone" />
+                </SelectTrigger>
+                <SelectContent>
+                  {birthZones.map((zone) => (
+                    <SelectItem key={zone.id} value={String(zone.id)}>
+                      {zone.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="birthWoreda">Woreda</Label>
-              <Input
-                id="birthWoreda"
-                value={formData.birthWoreda}
-                onChange={(e) => handleInputChange("birthWoreda", e.target.value)}
-                placeholder="Enter woreda"
-              />
+              <Select
+                value={formData.birthWoreda ? String(formData.birthWoreda) : ""}
+                onValueChange={(value) => {
+                  handleInputChange("birthWoreda", Number(value));
+                }}
+                disabled={!formData.birthZone}
+              >
+                <SelectTrigger id="birthWoreda" className="w-full">
+                  <SelectValue placeholder="Select woreda" />
+                </SelectTrigger>
+                <SelectContent>
+                  {birthWoredas.map((woreda) => (
+                    <SelectItem key={woreda.id} value={String(woreda.id)}>
+                      {woreda.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="birthKebele">Kebele</Label>
@@ -569,39 +760,104 @@ export function StudentApplicationForm() {
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="residentialCountry">Country</Label>
-              <Input
-                id="residentialCountry"
-                value={formData.residentialCountry}
-                onChange={(e) => handleInputChange("residentialCountry", e.target.value)}
-                placeholder="Enter country"
-              />
+              <Select
+                value={formData.residentialCountry ? String(formData.residentialCountry) : ""}
+                onValueChange={async (value) => {
+                  const countryId = Number(value);
+                  handleInputChange("residentialCountry", countryId);
+                  handleInputChange("residentialRegion", null);
+                  handleInputChange("residentialZone", null);
+                  handleInputChange("residentialWoreda", null);
+                  if (countryId) {
+                    await fetchRegions(countryId, 'residential');
+                  }
+                }}
+              >
+                <SelectTrigger id="residentialCountry" className="w-full">
+                  <SelectValue placeholder="Select country" />
+                </SelectTrigger>
+                <SelectContent>
+                  {countries.map((country) => (
+                    <SelectItem key={country.id} value={String(country.id)}>
+                      {country.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="residentialRegion">Region</Label>
-              <Input
-                id="residentialRegion"
-                value={formData.residentialRegion}
-                onChange={(e) => handleInputChange("residentialRegion", e.target.value)}
-                placeholder="Enter region"
-              />
+              <Select
+                value={formData.residentialRegion ? String(formData.residentialRegion) : ""}
+                onValueChange={async (value) => {
+                  const regionId = Number(value);
+                  handleInputChange("residentialRegion", regionId);
+                  handleInputChange("residentialZone", null);
+                  handleInputChange("residentialWoreda", null);
+                  if (regionId) {
+                    await fetchZones(regionId, 'residential');
+                  }
+                }}
+                disabled={!formData.residentialCountry}
+              >
+                <SelectTrigger id="residentialRegion" className="w-full">
+                  <SelectValue placeholder="Select region" />
+                </SelectTrigger>
+                <SelectContent>
+                  {residentialRegions.map((region) => (
+                    <SelectItem key={region.id} value={String(region.id)}>
+                      {region.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="residentialZone">Zone</Label>
-              <Input
-                id="residentialZone"
-                value={formData.residentialZone}
-                onChange={(e) => handleInputChange("residentialZone", e.target.value)}
-                placeholder="Enter zone"
-              />
+              <Select
+                value={formData.residentialZone ? String(formData.residentialZone) : ""}
+                onValueChange={async (value) => {
+                  const zoneId = Number(value);
+                  handleInputChange("residentialZone", zoneId);
+                  handleInputChange("residentialWoreda", null);
+                  if (zoneId) {
+                    await fetchWoredas(zoneId, 'residential');
+                  }
+                }}
+                disabled={!formData.residentialRegion}
+              >
+                <SelectTrigger id="residentialZone" className="w-full">
+                  <SelectValue placeholder="Select zone" />
+                </SelectTrigger>
+                <SelectContent>
+                  {residentialZones.map((zone) => (
+                    <SelectItem key={zone.id} value={String(zone.id)}>
+                      {zone.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="residentialWoreda">Woreda</Label>
-              <Input
-                id="residentialWoreda"
-                value={formData.residentialWoreda}
-                onChange={(e) => handleInputChange("residentialWoreda", e.target.value)}
-                placeholder="Enter woreda"
-              />
+              <Select
+                value={formData.residentialWoreda ? String(formData.residentialWoreda) : ""}
+                onValueChange={(value) => {
+                  handleInputChange("residentialWoreda", Number(value));
+                }}
+                disabled={!formData.residentialZone}
+              >
+                <SelectTrigger id="residentialWoreda" className="w-full">
+                  <SelectValue placeholder="Select woreda" />
+                </SelectTrigger>
+                <SelectContent>
+                  {birthWoredas.map((woreda) => (
+                    <SelectItem key={woreda.id} value={String(woreda.id)}>
+                      {woreda.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="residentialKebele">Kebele</Label>
@@ -656,30 +912,76 @@ export function StudentApplicationForm() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="ptbcCountry">Country</Label>
-              <Input
-                id="ptbcCountry"
-                value={formData.ptbcCountry}
-                onChange={(e) => handleInputChange("ptbcCountry", e.target.value)}
-                placeholder="Enter country"
-              />
+              <Select
+                value={formData.ptbcCountry ? String(formData.ptbcCountry) : ""}
+                onValueChange={async (value) => {
+                  const countryId = Number(value);
+                  handleInputChange("ptbcCountry", countryId);
+                  handleInputChange("ptbcRegion", null);
+                  handleInputChange("ptbcZone", null);
+                  if (countryId) {
+                    await fetchRegions(countryId, 'ptbc');
+                  }
+                }}
+              >
+                <SelectTrigger id="ptbcCountry" className="w-full">
+                  <SelectValue placeholder="Select country" />
+                </SelectTrigger>
+                <SelectContent>
+                  {countries.map((country) => (
+                    <SelectItem key={country.id} value={String(country.id)}>
+                      {country.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="ptbcRegion">Region</Label>
-              <Input
-                id="ptbcRegion"
-                value={formData.ptbcRegion}
-                onChange={(e) => handleInputChange("ptbcRegion", e.target.value)}
-                placeholder="Enter region"
-              />
+              <Select
+                value={formData.ptbcRegion ? String(formData.ptbcRegion) : ""}
+                onValueChange={async (value) => {
+                  const regionId = Number(value);
+                  handleInputChange("ptbcRegion", regionId);
+                  handleInputChange("ptbcZone", null);
+                  if (regionId) {
+                    await fetchZones(regionId, 'ptbc');
+                  }
+                }}
+                disabled={!formData.ptbcCountry}
+              >
+                <SelectTrigger id="ptbcRegion" className="w-full">
+                  <SelectValue placeholder="Select region" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ptbcRegions.map((region) => (
+                    <SelectItem key={region.id} value={String(region.id)}>
+                      {region.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="ptbcZone">Zone</Label>
-              <Input
-                id="ptbcZone"
-                value={formData.ptbcZone}
-                onChange={(e) => handleInputChange("ptbcZone", e.target.value)}
-                placeholder="Enter zone"
-              />
+              <Select
+                value={formData.ptbcZone ? String(formData.ptbcZone) : ""}
+                onValueChange={(value) => {
+                  handleInputChange("ptbcZone", Number(value));
+                }}
+                disabled={!formData.ptbcRegion}
+              >
+                <SelectTrigger id="ptbcZone" className="w-full">
+                  <SelectValue placeholder="Select zone" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ptbcZones.map((zone) => (
+                    <SelectItem key={zone.id} value={String(zone.id)}>
+                      {zone.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>
@@ -687,21 +989,18 @@ export function StudentApplicationForm() {
         <div className="space-y-4 border-t pt-4">
           <h4 className="font-medium">Special Needs</h4>
           <div className="space-y-2">
-            <Label htmlFor="specialNeed">Do you have any special needs?</Label>
-            <Select
-              value={formData.specialNeed}
-              onValueChange={(value) => handleInputChange("specialNeed", value)}
-            >
-              <SelectTrigger id="specialNeed" className="w-full">
-                <SelectValue placeholder="Select option" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Yes">Yes</SelectItem>
-                <SelectItem value="No">No</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="specialNeed"
+                checked={formData.specialNeed}
+                onCheckedChange={(checked) => handleInputChange("specialNeed", checked === true)}
+              />
+              <Label htmlFor="specialNeed" className="font-normal cursor-pointer">
+                Do you have any special needs?
+              </Label>
+            </div>
           </div>
-          {formData.specialNeed === "Yes" && (
+          {formData.specialNeed && (
             <div className="space-y-2">
               <Label htmlFor="specialNeedDescription">Description</Label>
               <Input
@@ -989,7 +1288,15 @@ export function StudentApplicationForm() {
           </div>
         </div>
 
-        <div className="min-h-[400px]">{renderCurrentPage()}</div>
+        <div className="min-h-[400px]">
+          {submitError && (
+            <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              <p className="font-medium">Error</p>
+              <p className="mt-1">{submitError}</p>
+            </div>
+          )}
+          {renderCurrentPage()}
+        </div>
 
         {isLoading ? (
           <div className="flex items-center justify-center py-8">

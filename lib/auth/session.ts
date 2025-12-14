@@ -7,6 +7,7 @@ export type SessionData = {
   userId: string;
   email: string;
   firstName: string;
+  jwt?: string; // Store JWT token for authenticated Strapi requests
 };
 
 export async function createSession(data: SessionData) {

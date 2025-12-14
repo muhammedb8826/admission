@@ -92,11 +92,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create session with user data from Strapi
+    // Create session with user data from Strapi including JWT token
     await createSession({
       userId: String(authData.user.id),
       email: authData.user.email,
       firstName: authData.user.firstName || authData.user.username || "",
+      jwt: authData.jwt, // Store JWT for authenticated requests
     });
 
     return NextResponse.json(

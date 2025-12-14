@@ -30,25 +30,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get the JWT token from the session
-    // Note: You may need to store the JWT token in the session during login
-    // For now, we'll use the API token if available
+    // Use the user's JWT token from session for authenticated requests
+    // This allows the user to create/update their own profile using their permissions
+    // Fall back to API token if JWT is not available
+    const userJwt = session.jwt;
     const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
+    const authToken = userJwt || apiToken;
 
     // Associate the profile with the logged-in user
-    // Add user email to the data if not already present
-    const profileData = {
-      ...body.data,
-      // Add user email for filtering/association
-      // Adjust based on your Strapi schema - you might have a user relation instead
-      email: body.data.email || session.email,
-    };
+    // Remove email field if present (not in Strapi schema)
+    // If you have a user relation field, you would set it here: user: session.userId
+    const profileData = Object.fromEntries(
+      Object.entries(body.data).filter(([key]) => key !== 'email')
+    );
+    
+    // If your Strapi schema has a 'user' relation field, uncomment and set it:
+    // profileData.user = session.userId;
 
     const response = await fetch(`${strapiUrl}/api/student-profiles`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(apiToken && { Authorization: `Bearer ${apiToken}` }),
+        ...(authToken && { Authorization: `Bearer ${authToken}` }),
       },
       body: JSON.stringify({
         data: profileData,
@@ -63,12 +66,19 @@ export async function POST(request: NextRequest) {
         result?.message ||
         "Failed to create student profile";
       
+      console.error("Strapi API error:", {
+        status: response.status,
+        error: result,
+        url: `${strapiUrl}/api/student-profiles`,
+      });
+      
       return NextResponse.json(
-        { error: errorMessage },
+        { error: errorMessage, details: result },
         { status: response.status || 500 }
       );
     }
 
+    // Return the result with proper structure
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     console.error("Student profile creation error:", error);
@@ -231,14 +241,18 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // Use the user's JWT token from session for authenticated requests
+    // Fall back to API token if JWT is not available
+    const userJwt = session.jwt;
     const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
+    const authToken = userJwt || apiToken;
 
     // Update the profile
     const response = await fetch(`${strapiUrl}/api/student-profiles/${id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        ...(apiToken && { Authorization: `Bearer ${apiToken}` }),
+        ...(authToken && { Authorization: `Bearer ${authToken}` }),
       },
       body: JSON.stringify({
         data: updateData,

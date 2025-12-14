@@ -333,10 +333,10 @@ export default async function ProfilePage() {
                             <p className="text-sm text-muted-foreground">Address</p>
                             <p className="text-sm font-medium">
                               {[
-                                studentProfile.birthCountry,
-                                studentProfile.birthRegion,
-                                studentProfile.birthZone,
-                                studentProfile.birthWoreda,
+                                typeof studentProfile.birthCountry === 'object' ? studentProfile.birthCountry?.name : studentProfile.birthCountry,
+                                typeof studentProfile.birthRegion === 'object' ? studentProfile.birthRegion?.name : studentProfile.birthRegion,
+                                typeof studentProfile.birthZone === 'object' ? studentProfile.birthZone?.name : studentProfile.birthZone,
+                                typeof studentProfile.birthWoreda === 'object' ? studentProfile.birthWoreda?.name : studentProfile.birthWoreda,
                                 studentProfile.birthKebele,
                               ].filter(Boolean).join(", ") || "Not provided"}
                             </p>
@@ -359,10 +359,10 @@ export default async function ProfilePage() {
                             <p className="text-sm text-muted-foreground">Address</p>
                             <p className="text-sm font-medium">
                               {[
-                                studentProfile.residentialCountry,
-                                studentProfile.residentialRegion,
-                                studentProfile.residentialZone,
-                                studentProfile.residentialWoreda,
+                                typeof studentProfile.residentialCountry === 'object' ? studentProfile.residentialCountry?.name : studentProfile.residentialCountry,
+                                typeof studentProfile.residentialRegion === 'object' ? studentProfile.residentialRegion?.name : studentProfile.residentialRegion,
+                                typeof studentProfile.residentialZone === 'object' ? studentProfile.residentialZone?.name : studentProfile.residentialZone,
+                                typeof studentProfile.residentialWoreda === 'object' ? studentProfile.residentialWoreda?.name : studentProfile.residentialWoreda,
                                 studentProfile.residentialKebele,
                               ].filter(Boolean).join(", ") || "Not provided"}
                             </p>
@@ -494,9 +494,9 @@ export default async function ProfilePage() {
                               <p className="text-sm text-muted-foreground">Address</p>
                               <p className="text-sm font-medium">
                                 {[
-                                  studentProfile.ptbcCountry,
-                                  studentProfile.ptbcRegion,
-                                  studentProfile.ptbcZone,
+                                  typeof studentProfile.ptbcCountry === 'object' ? studentProfile.ptbcCountry?.name : studentProfile.ptbcCountry,
+                                  typeof studentProfile.ptbcRegion === 'object' ? studentProfile.ptbcRegion?.name : studentProfile.ptbcRegion,
+                                  typeof studentProfile.ptbcZone === 'object' ? studentProfile.ptbcZone?.name : studentProfile.ptbcZone,
                                   studentProfile.ptbcKebele,
                                 ].filter(Boolean).join(", ") || "Not provided"}
                               </p>
