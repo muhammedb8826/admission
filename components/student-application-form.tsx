@@ -165,6 +165,26 @@ export function StudentApplicationForm() {
     documentsSubmitted: false,
   });
 
+  // Fetch countries on mount
+  useEffect(() => {
+    const fetchCountries = async () => {
+      try {
+        const response = await fetch("/api/locations/countries?populate=regions");
+        if (response.ok) {
+          const result = await response.json();
+          if (result?.data) {
+            setCountries(result.data);
+          }
+        } else {
+          console.error("Failed to fetch countries:", response.status);
+        }
+      } catch (error) {
+        console.error("Error fetching countries:", error);
+      }
+    };
+    fetchCountries();
+  }, []);
+
   // Load existing profile data on mount
   useEffect(() => {
     const loadExistingProfile = async () => {
@@ -172,9 +192,17 @@ export function StudentApplicationForm() {
         const response = await fetch("/api/student-profiles?populate=*");
         if (response.ok) {
           const result = await response.json();
-          if (result?.data) {
+          console.log("Profile load response:", result);
+          
+          // Handle both null and object responses
+          // The API returns { data: profile } or { data: null }
+          if (result?.data && result.data !== null && typeof result.data === 'object') {
             const profile = result.data;
-            setProfileId(profile.id);
+            console.log("Loading existing profile with ID:", profile.id);
+            
+            if (profile.id) {
+              setProfileId(profile.id);
+            }
             
             // Populate form with existing data
             setFormData({
@@ -222,7 +250,11 @@ export function StudentApplicationForm() {
               paymentReference: profile.paymentReference || "",
               documentsSubmitted: profile.documentsSubmitted || false,
             });
+          } else {
+            console.log("No existing profile found - user will create a new one");
           }
+        } else {
+          console.log("Profile API response not OK:", response.status, response.statusText);
         }
       } catch (error) {
         console.error("Error loading profile:", error);
@@ -233,6 +265,118 @@ export function StudentApplicationForm() {
 
     loadExistingProfile();
   }, []);
+  
+  // Load location dropdowns when profile data is loaded
+  useEffect(() => {
+    if (!profileId || isLoading) return;
+    
+    const loadLocationData = async () => {
+      // Load birth location
+      if (formData.birthCountry) {
+        await fetchRegions(formData.birthCountry, 'birth');
+        if (formData.birthRegion) {
+          await fetchZones(formData.birthRegion, 'birth');
+          if (formData.birthZone) {
+            await fetchWoredas(formData.birthZone, 'birth');
+          }
+        }
+      }
+      
+      // Load residential location
+      if (formData.residentialCountry) {
+        await fetchRegions(formData.residentialCountry, 'residential');
+        if (formData.residentialRegion) {
+          await fetchZones(formData.residentialRegion, 'residential');
+          if (formData.residentialZone) {
+            await fetchWoredas(formData.residentialZone, 'residential');
+          }
+        }
+      }
+      
+      // Load PTBC location
+      if (formData.ptbcCountry) {
+        await fetchRegions(formData.ptbcCountry, 'ptbc');
+        if (formData.ptbcRegion) {
+          await fetchZones(formData.ptbcRegion, 'ptbc');
+        }
+      }
+    };
+    
+    loadLocationData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileId, isLoading]);
+
+  // Helper function to fetch regions when country is selected
+  const fetchRegions = async (countryId: number, type: 'birth' | 'residential' | 'ptbc') => {
+    try {
+      const response = await fetch(`/api/locations/regions?countryId=${countryId}&populate=zones`);
+      if (response.ok) {
+        const result = await response.json();
+        if (result?.data) {
+          if (type === 'birth') {
+            setBirthRegions(result.data);
+            setBirthZones([]);
+            setBirthWoredas([]);
+          } else if (type === 'residential') {
+            setResidentialRegions(result.data);
+            setResidentialZones([]);
+            setResidentialWoredas([]);
+          } else {
+            setPtbcRegions(result.data);
+            setPtbcZones([]);
+            setPtbcWoredas([]);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching regions:", error);
+    }
+  };
+
+  // Helper function to fetch zones when region is selected
+  const fetchZones = async (regionId: number, type: 'birth' | 'residential' | 'ptbc') => {
+    try {
+      const response = await fetch(`/api/locations/zones?regionId=${regionId}&populate=woredas`);
+      if (response.ok) {
+        const result = await response.json();
+        if (result?.data) {
+          if (type === 'birth') {
+            setBirthZones(result.data);
+            setBirthWoredas([]);
+          } else if (type === 'residential') {
+            setResidentialZones(result.data);
+            setResidentialWoredas([]);
+          } else {
+            setPtbcZones(result.data);
+            setPtbcWoredas([]);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching zones:", error);
+    }
+  };
+
+  // Helper function to fetch woredas when zone is selected
+  const fetchWoredas = async (zoneId: number, type: 'birth' | 'residential' | 'ptbc') => {
+    try {
+      const response = await fetch(`/api/locations/woredas?zoneId=${zoneId}`);
+      if (response.ok) {
+        const result = await response.json();
+        if (result?.data) {
+          if (type === 'birth') {
+            setBirthWoredas(result.data);
+          } else if (type === 'residential') {
+            setResidentialWoredas(result.data);
+          } else {
+            setPtbcWoredas(result.data);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching woredas:", error);
+    }
+  };
 
   const handleInputChange = (field: keyof StudentProfileFormData, value: string | boolean | number | null) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -308,6 +452,8 @@ export function StudentApplicationForm() {
         ? { data: { id: profileId, ...payload } }
         : { data: payload };
 
+      console.log("Saving profile:", { method, profileId, hasProfileId: !!profileId, payloadKeys: Object.keys(payload) });
+
       const response = await fetch(url, {
         method,
         headers: {
@@ -332,11 +478,17 @@ export function StudentApplicationForm() {
       // Handle Strapi response format - data might be nested
       const profileData = result?.data?.data || result?.data;
       
-      if (profileData?.id && !profileId) {
-        setProfileId(profileData.id);
-        console.log("Profile created with ID:", profileData.id);
-      } else if (profileId) {
-        console.log("Profile updated successfully");
+      if (profileData?.id) {
+        if (!profileId) {
+          // New profile created
+          setProfileId(profileData.id);
+          console.log("✅ Profile created with ID:", profileData.id);
+        } else {
+          // Existing profile updated
+          console.log("✅ Profile updated successfully, ID:", profileId);
+        }
+      } else {
+        console.warn("⚠️ No profile ID in response:", result);
       }
     } catch (error) {
       console.error("Error saving:", error);

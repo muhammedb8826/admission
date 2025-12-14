@@ -39,13 +39,12 @@ export async function POST(request: NextRequest) {
 
     // Associate the profile with the logged-in user
     // Remove email field if present (not in Strapi schema)
-    // If you have a user relation field, you would set it here: user: session.userId
     const profileData = Object.fromEntries(
       Object.entries(body.data).filter(([key]) => key !== 'email')
     );
     
-    // If your Strapi schema has a 'user' relation field, uncomment and set it:
-    // profileData.user = session.userId;
+    // Set the user relation to associate this profile with the logged-in user
+    profileData.user = Number(session.userId);
 
     const response = await fetch(`${strapiUrl}/api/student-profiles`, {
       method: "POST",
@@ -114,20 +113,17 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const populate = searchParams.get("populate") || "*";
 
-    // Filter by the logged-in user's email
-    // Using Strapi filter syntax - adjust based on your schema
-    // If student-profiles has a user relation, you might need: filters[user][email][$eq]
-    // For now, we'll fetch all and filter server-side for security
-    const response = await fetch(
-      `${strapiUrl}/api/student-profiles?populate=${populate}`,
-      {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          ...(apiToken && { Authorization: `Bearer ${apiToken}` }),
-        },
-      }
-    );
+    // Filter by the logged-in user's ID using the user relation
+    const userId = Number(session.userId);
+    const url = `${strapiUrl}/api/student-profiles?populate=${populate}&filters[user][id][$eq]=${userId}`;
+    
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(apiToken && { Authorization: `Bearer ${apiToken}` }),
+      },
+    });
 
     const result = await response.json().catch(() => ({}));
 
@@ -143,15 +139,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Filter results server-side to only return the logged-in user's profile
-    // This ensures security even if Strapi filtering doesn't work as expected
+    // Strapi should return only the user's profile due to the filter
+    // But we still validate server-side for security
     let filteredData = null;
     
     type ProfileData = {
-      email?: string;
-      userId?: string;
       user?: {
-        email?: string;
         id?: number;
       };
       [key: string]: unknown;
@@ -159,27 +152,16 @@ export async function GET(request: NextRequest) {
     
     if (result?.data) {
       if (Array.isArray(result.data)) {
-        // Find profile matching the logged-in user's email
-        // Adjust this logic based on your Strapi schema
+        // Find profile matching the logged-in user's ID
+        const userId = Number(session.userId);
         filteredData = result.data.find((profile: ProfileData) => {
-          // Check if profile has email field matching session email
-          if (profile.email === session.email) return true;
-          // Check if profile has user relation with matching email
-          if (profile.user?.email === session.email) return true;
-          // Check if profile has userId matching session userId
-          if (profile.userId === session.userId) return true;
-          if (profile.user?.id === Number(session.userId)) return true;
-          return false;
+          return profile.user?.id === userId;
         }) || null;
       } else if (result.data) {
         // Single object - check if it belongs to the user
         const profile = result.data as ProfileData;
-        if (
-          profile.email === session.email ||
-          profile.user?.email === session.email ||
-          profile.userId === session.userId ||
-          profile.user?.id === Number(session.userId)
-        ) {
+        const userId = Number(session.userId);
+        if (profile.user?.id === userId) {
           filteredData = profile;
         }
       }
@@ -224,7 +206,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const { id, ...updateData } = body.data;
+    const { id, ...restData } = body.data;
 
     if (!id) {
       return NextResponse.json(
@@ -247,6 +229,11 @@ export async function PUT(request: NextRequest) {
     const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
     const authToken = userJwt || apiToken;
 
+    // Remove email field if present (not in Strapi schema)
+    const updateData = Object.fromEntries(
+      Object.entries(restData).filter(([key]) => key !== 'email')
+    );
+
     // Update the profile
     const response = await fetch(`${strapiUrl}/api/student-profiles/${id}`, {
       method: "PUT",
@@ -262,13 +249,19 @@ export async function PUT(request: NextRequest) {
     const result = await response.json().catch(() => ({}));
 
     if (!response.ok) {
+      console.error("Strapi API error:", {
+        status: response.status,
+        error: result,
+        url: `${strapiUrl}/api/student-profiles/${id}`,
+      });
+
       const errorMessage =
         result?.error?.message ||
         result?.message ||
-        "Failed to update student profile";
+        (response.status === 404 ? "Student profile not found" : "Failed to update student profile");
       
       return NextResponse.json(
-        { error: errorMessage },
+        { error: errorMessage, details: result },
         { status: response.status || 500 }
       );
     }
