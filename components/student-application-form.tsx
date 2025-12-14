@@ -429,7 +429,7 @@ export function StudentApplicationForm() {
         // Keep other non-empty values
         acc[key] = value;
         return acc;
-      }, {} as Record<string, any>);
+      }, {} as Record<string, string | number | boolean>);
 
       // Determine studentType based on programLevel enum values
       const getStudentType = (programLevel: string): "undergraduate" | "graduate" => {
@@ -535,9 +535,12 @@ export function StudentApplicationForm() {
         if (excludedFields.includes(key)) {
           return acc;
         }
-        acc[key] = value;
+        // Skip null values
+        if (value !== null && value !== undefined) {
+          acc[key] = value as string | number | boolean;
+        }
         return acc;
-      }, {} as Record<string, any>);
+      }, {} as Record<string, string | number | boolean>);
 
       // Final submission with submitted status
       const payload = {
@@ -673,7 +676,7 @@ export function StudentApplicationForm() {
 
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="fatherNameEn">Father's Name (English) <span className="text-destructive">*</span></Label>
+            <Label htmlFor="fatherNameEn">Father&apos;s Name (English) <span className="text-destructive">*</span></Label>
             <Input
               id="fatherNameEn"
               value={formData.fatherNameEn}
@@ -682,7 +685,7 @@ export function StudentApplicationForm() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="fatherNameAm">Father's Name (Amharic)</Label>
+            <Label htmlFor="fatherNameAm">Father&apos;s Name (Amharic)</Label>
             <Input
               id="fatherNameAm"
               value={formData.fatherNameAm}
@@ -694,7 +697,7 @@ export function StudentApplicationForm() {
 
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="grandFatherNameEn">Grandfather's Name (English)</Label>
+            <Label htmlFor="grandFatherNameEn">Grandfather&apos;s Name (English)</Label>
             <Input
               id="grandFatherNameEn"
               value={formData.grandFatherNameEn}
@@ -703,7 +706,7 @@ export function StudentApplicationForm() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="grandFatherNameAm">Grandfather's Name (Amharic)</Label>
+            <Label htmlFor="grandFatherNameAm">Grandfather&apos;s Name (Amharic)</Label>
             <Input
               id="grandFatherNameAm"
               value={formData.grandFatherNameAm}
