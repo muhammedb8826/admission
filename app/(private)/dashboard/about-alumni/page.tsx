@@ -40,7 +40,7 @@ export default async function AboutAlumniPage() {
     >
       <AppSidebar variant="inset" user={user} />
       <SidebarInset>
-        <SiteHeader />
+        <SiteHeader title="About Alumni" />
         <div className="flex flex-1 flex-col">
           <PageHeaderBanner
             title="About Alumni"

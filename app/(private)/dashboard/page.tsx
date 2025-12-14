@@ -1,6 +1,17 @@
 import type React from "react"
 import Image from "next/image"
+import Link from "next/link"
 import { redirect } from "next/navigation"
+import { 
+  FileText, 
+  CheckCircle2, 
+  Clock, 
+  AlertCircle,
+  ArrowRight,
+  User,
+  Calendar,
+  BookOpen
+} from "lucide-react"
 
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
@@ -9,12 +20,122 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar"
 import { getSession } from "@/lib/auth/session"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { getStrapiURL } from "@/lib/strapi/client"
 
 function getInitials(firstName: string, email: string): string {
   if (firstName) {
     return firstName.substring(0, 2).toUpperCase()
   }
   return email.substring(0, 2).toUpperCase()
+}
+
+async function getStudentProfile(email: string, userId: string) {
+  try {
+    const strapiUrl = getStrapiURL();
+    if (!strapiUrl) {
+      return null;
+    }
+
+    const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
+    
+    // Fetch all profiles and filter server-side by logged-in user
+    // This ensures security - we only return data for the authenticated user
+    const response = await fetch(
+      `${strapiUrl}/api/student-profiles?populate=*`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          ...(apiToken && { Authorization: `Bearer ${apiToken}` }),
+        },
+        cache: "no-store",
+      }
+    );
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const result = await response.json();
+    
+    // Filter server-side to only return the logged-in user's profile
+    type ProfileData = {
+      email?: string;
+      userId?: string;
+      user?: {
+        email?: string;
+        id?: number;
+      };
+      [key: string]: unknown;
+    };
+    
+    if (result?.data) {
+      if (Array.isArray(result.data)) {
+        // Find profile matching the logged-in user
+        const userProfile = result.data.find((profile: ProfileData) => {
+          if (profile.email === email) return true;
+          if (profile.user?.email === email) return true;
+          if (profile.userId === userId) return true;
+          if (profile.user?.id === Number(userId)) return true;
+          return false;
+        });
+        return userProfile || null;
+      } else if (result.data) {
+        // Single object - check if it belongs to the user
+        const profile = result.data as ProfileData;
+        if (
+          profile.email === email ||
+          profile.user?.email === email ||
+          profile.userId === userId ||
+          profile.user?.id === Number(userId)
+        ) {
+          return profile;
+        }
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error("Error fetching student profile:", error);
+    return null;
+  }
+}
+
+function getStatusBadge(status: string) {
+  switch (status?.toLowerCase()) {
+    case "approved":
+    case "accepted":
+      return (
+        <Badge className="bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20">
+          <CheckCircle2 className="mr-1 h-3 w-3" />
+          Approved
+        </Badge>
+      );
+    case "rejected":
+    case "denied":
+      return (
+        <Badge className="bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20">
+          <AlertCircle className="mr-1 h-3 w-3" />
+          Rejected
+        </Badge>
+      );
+    case "pending":
+      return (
+        <Badge className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20">
+          <Clock className="mr-1 h-3 w-3" />
+          Pending
+        </Badge>
+      );
+    default:
+      return (
+        <Badge variant="outline">
+          {status || "Unknown"}
+        </Badge>
+      );
+  }
 }
 
 export default async function DashboardPage() {
@@ -30,6 +151,12 @@ export default async function DashboardPage() {
     avatar: "",
     initials: getInitials(session.firstName, session.email),
   }
+
+  // Fetch student profile (API route handles filtering by logged-in user)
+  const studentProfile = await getStudentProfile(session.email, session.userId);
+
+  const hasApplication = !!studentProfile;
+  const applicationStatus = studentProfile?.applicationStatus || "not_started";
 
   return (
     <SidebarProvider
@@ -61,125 +188,219 @@ export default async function DashboardPage() {
             </div>
             <div className="space-y-1">
               <h1 className="text-xl font-semibold text-foreground">
-                {user.name}
+                Welcome back, {user.name}!
               </h1>
               <p className="text-sm text-muted-foreground">{user.email}</p>
             </div>
           </header>
 
           {/* Main content */}
-          <div className="flex flex-1 flex-col gap-6 px-4 py-6 lg:flex-row lg:px-8">
-            {/* Left vertical menu */}
-            {/* <aside className="w-full max-w-xs">
-              <div className="rounded-md border bg-background shadow-sm">
-                <nav className="flex flex-col text-sm">
-                  {[
-                    "Basic Profile",
-                    "Profile Picture",
-                    "Location & Contact Details",
-                    "Education Details",
-                    "Work / Professional Details",
-                    "Achievements",
-                    "Additional Details",
-                  ].map((label, index) => (
-                    <button
-                      key={label}
-                      type="button"
-                      className={`flex items-center justify-between border-b px-4 py-3 text-left last:border-b-0 hover:bg-muted/60 ${
-                        index === 0
-                          ? "bg-muted font-medium text-primary"
-                          : "text-muted-foreground"
-                      }`}
-                    >
-                      <span>{label}</span>
-                    </button>
-                  ))}
-                </nav>
-              </div>
-            </aside> */}
-
-            {/* Right profile form */}
-            
-            <section className="flex-1">
-              <div className="space-y-6 rounded-md border bg-background p-6 shadow-sm">
-                {/* <div>
-                  <h2 className="text-lg font-semibold text-foreground">
-                    Basic profile
-                  </h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Please update profile details here
-                  </p>
-                </div> */}
-
-                {/* <form className="space-y-8"> */}
-                  {/* Name row */}
-                  {/* <div className="grid gap-4 md:grid-cols-3">
-                    <div className="space-y-1 md:col-span-1">
-                      <label className="block text-sm font-medium text-foreground">
-                        Name
-                      </label>
-                      <input
-                        type="text"
-                        className="w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                        defaultValue={user.name}
-                      />
+          <div className="flex flex-1 flex-col gap-6 px-4 py-6 lg:px-8">
+            {/* Application Status Card */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Application Status</CardTitle>
+                    <CardDescription>
+                      {hasApplication 
+                        ? "Track your admission application progress"
+                        : "Start your admission application process"}
+                    </CardDescription>
+                  </div>
+                  {hasApplication && getStatusBadge(applicationStatus)}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {hasApplication ? (
+                  <div className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-1">
+                        <p className="text-sm text-muted-foreground">Program Level</p>
+                        <p className="text-sm font-medium">
+                          {studentProfile.programLevel || "Not specified"}
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm text-muted-foreground">Program Type</p>
+                        <p className="text-sm font-medium">
+                          {studentProfile.programType || "Not specified"}
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm text-muted-foreground">Semester</p>
+                        <p className="text-sm font-medium">
+                          {studentProfile.semester || "Not specified"}
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm text-muted-foreground">Submitted Date</p>
+                        <p className="text-sm font-medium">
+                          {studentProfile.createdAt 
+                            ? new Date(studentProfile.createdAt).toLocaleDateString()
+                            : "N/A"}
+                        </p>
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <label className="block text-sm font-medium text-foreground">
-                        Middle Name
-                      </label>
-                      <input
-                        type="text"
-                        className="w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
+                    <div className="flex gap-2 pt-4 border-t">
+                      <Button asChild>
+                        <Link href="/dashboard/application">
+                          <FileText className="mr-2 h-4 w-4" />
+                          View Application
+                        </Link>
+                      </Button>
                     </div>
-                    <div className="space-y-1">
-                      <label className="block text-sm font-medium text-foreground">
-                        Last Name
-                      </label>
-                      <input
-                        type="text"
-                        className="w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                    </div>
-                  </div> */}
-
-                  {/* About me */}
-                  {/* <div className="space-y-1">
-                    <label className="block text-sm font-medium text-foreground">
-                      About Me
-                    </label>
-                    <textarea
-                      rows={4}
-                      className="w-full rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Max of 1000 characters
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                      You haven&apos;t started your application yet. Click the button below to begin the admission process.
                     </p>
-                  </div> */}
+                    <Button asChild>
+                      <Link href="/dashboard/application">
+                        Start Application
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </Link>
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-                  {/* <div className="flex flex-wrap items-center gap-3">
-                    <button
-                      type="submit"
-                      className="rounded-md bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
-                    >
-                      Update Profile
-                    </button>
-                    <button
-                      type="button"
-                      className="text-sm font-medium text-primary hover:text-primary/80"
-                    >
-                      Cancel and View Profile
-                    </button>
-                  </div> */}
-                {/* </form> */}
-              </div>
-            </section>
+            {/* Quick Actions */}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Application</CardTitle>
+                  <CardDescription>Manage your application</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button asChild variant="outline" className="w-full">
+                    <Link href="/dashboard/application">
+                      <FileText className="mr-2 h-4 w-4" />
+                      {hasApplication ? "View Application" : "Start Application"}
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Profile</CardTitle>
+                  <CardDescription>View your profile</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button asChild variant="outline" className="w-full">
+                    <Link href="/dashboard/profile">
+                      <User className="mr-2 h-4 w-4" />
+                      My Profile
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Calendar</CardTitle>
+                  <CardDescription>Important dates</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button asChild variant="outline" className="w-full">
+                    <Link href="/dashboard/calendar">
+                      <Calendar className="mr-2 h-4 w-4" />
+                      View Calendar
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Application Details (if exists) */}
+            {hasApplication && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Application Details</CardTitle>
+                  <CardDescription>Your submitted application information</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">Full Name</p>
+                      <p className="text-sm font-medium">
+                        {studentProfile.firstNameEn || "Not provided"}
+                        {studentProfile.fatherNameEn && ` ${studentProfile.fatherNameEn}`}
+                        {studentProfile.grandFatherNameEn && ` ${studentProfile.grandFatherNameEn}`}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">Phone Number</p>
+                      <p className="text-sm font-medium">
+                        {studentProfile.phoneNumber || "Not provided"}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">Date of Birth</p>
+                      <p className="text-sm font-medium">
+                        {studentProfile.dateOfBirth 
+                          ? new Date(studentProfile.dateOfBirth).toLocaleDateString()
+                          : "Not provided"}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">National ID</p>
+                      <p className="text-sm font-medium">
+                        {studentProfile.natioanalId || "Not provided"}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">Gender</p>
+                      <p className="text-sm font-medium">
+                        {studentProfile.gender || "Not provided"}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">Student Type</p>
+                      <p className="text-sm font-medium">
+                        {studentProfile.studentType || "Not specified"}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Important Information */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Important Information</CardTitle>
+                <CardDescription>Stay updated with admission news</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-start gap-3 p-3 rounded-md border bg-muted/50">
+                    <BookOpen className="h-5 w-5 text-primary mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Application Deadline</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Make sure to submit your application before the deadline. Check the calendar for important dates.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 p-3 rounded-md border bg-muted/50">
+                    <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Required Documents</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Ensure all required documents are uploaded and verified before submission.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </SidebarInset>
     </SidebarProvider>
   )
 }
-
-

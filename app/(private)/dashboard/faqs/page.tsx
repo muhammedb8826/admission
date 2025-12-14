@@ -40,7 +40,7 @@ export default async function FAQsPage() {
     >
       <AppSidebar variant="inset" user={user} />
       <SidebarInset>
-        <SiteHeader />
+        <SiteHeader title="FAQs" />
         <div className="flex flex-1 flex-col">
           <PageHeaderBanner
             title="FAQ's"

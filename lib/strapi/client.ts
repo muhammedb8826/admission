@@ -13,6 +13,10 @@ type StrapiFetchOptions = RequestInit & {
    * Append /api automatically when true (default).
    */
   useApiPrefix?: boolean;
+  /**
+   * Next.js specific cache options
+   */
+  next?: { revalidate?: number | false; tags?: string[] };
 };
 
 export function getStrapiURL(path = "") {
@@ -53,19 +57,44 @@ export async function strapiFetch<TResponse>(
       }
     }
 
-    const mergedHeaders = new Headers(headers);
-    mergedHeaders.set("Content-Type", "application/json");
+    // Build headers object - convert Headers to plain object if needed
+    const headerEntries: Record<string, string> = {};
+    if (headers) {
+      if (headers instanceof Headers) {
+        headers.forEach((value, key) => {
+          headerEntries[key] = value;
+        });
+      } else if (Array.isArray(headers)) {
+        headers.forEach(([key, value]) => {
+          headerEntries[key] = value;
+        });
+      } else {
+        Object.assign(headerEntries, headers);
+      }
+    }
+    
+    headerEntries["Content-Type"] = "application/json";
     if (apiToken) {
-      mergedHeaders.set("Authorization", `Bearer ${apiToken}`);
+      headerEntries["Authorization"] = `Bearer ${apiToken}`;
     }
 
     const fullUrl = url.toString();
     
-    const response = await fetch(fullUrl, {
-      ...init,
-      headers: mergedHeaders,
-      // keep Next.js cache options if provided
-    });
+    // Extract next option separately (Next.js specific cache option)
+    const { next, ...restInit } = init;
+    
+    // Build fetch options - use spread but override headers with our plain object
+    const fetchOptions: RequestInit & { next?: StrapiFetchOptions['next'] } = {
+      ...restInit,
+      headers: headerEntries,
+    };
+    
+    // Add Next.js specific next option if provided
+    if (next) {
+      fetchOptions.next = next;
+    }
+
+    const response = await fetch(fullUrl, fetchOptions);
 
     if (!response.ok) {
       const errorBody = await safeReadJson(response);

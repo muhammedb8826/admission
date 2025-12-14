@@ -6,6 +6,7 @@ import {
   IconFileDescription,
   IconInnerShadowTop,
   IconUser,
+  IconLayoutDashboard,
 } from "@tabler/icons-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -19,6 +20,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
+import Link from "next/link"
 
 type SidebarUser = {
   name: string
@@ -49,6 +51,11 @@ const data = {
     avatar: "/avatars/shadcn.jpg",
   },
   navMain: [
+    {
+      title: "Dashboard",
+      url: "/dashboard",
+      icon: IconLayoutDashboard,
+    },
     {
       title: "Profile",
       url: "/dashboard/profile",
@@ -89,10 +96,10 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               asChild
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
-              <a href="#">
-                <IconInnerShadowTop className="!size-5" />
+              <Link href="/dashboard">
+                <IconInnerShadowTop className="size-5!" />
                 <span className="text-base font-semibold">Admission</span>
-              </a>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

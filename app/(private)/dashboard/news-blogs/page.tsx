@@ -56,7 +56,7 @@ export default async function NewsBlogsPage() {
     >
       <AppSidebar variant="inset" user={user} />
       <SidebarInset>
-        <SiteHeader />
+        <SiteHeader title="News & Blogs" />
         <div className="flex flex-1 flex-col">
           <PageHeaderBanner
             title="News & Blogs"
