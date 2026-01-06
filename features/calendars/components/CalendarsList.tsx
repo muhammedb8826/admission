@@ -13,6 +13,7 @@ import { SearchInput } from "@/components/search-input"
 import { toast } from "sonner"
 
 import { fetchCalendarList } from "../services/calendar.service"
+import Link from "next/link"
 
 export function CalendarsList() {
   const router = useRouter()
@@ -57,7 +58,7 @@ export function CalendarsList() {
       {
         accessorKey: "name",
         header: "Calendar Name",
-        cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
+        cell: ({ row }) => <Link href={`/dashboard/calendar/${row.original.slug}`} className="font-medium hover:underline hover:text-primary/80">{row.original.name}</Link>,
       },
       {
         accessorKey: "program",
