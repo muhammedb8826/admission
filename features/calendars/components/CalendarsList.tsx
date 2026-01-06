@@ -112,7 +112,7 @@ export function CalendarsList() {
   )
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 md:-space-y-8">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4 flex-1">
           <SearchInput

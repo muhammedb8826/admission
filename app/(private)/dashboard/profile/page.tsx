@@ -1,4 +1,4 @@
-import type React from "react";
+
 import Image from "next/image";
 import { redirect } from "next/navigation";
 import { 
@@ -13,12 +13,6 @@ import {
   FileText
 } from "lucide-react";
 
-import { AppSidebar } from "@/components/app-sidebar";
-import { SiteHeader } from "@/components/site-header";
-import {
-  SidebarInset,
-  SidebarProvider,
-} from "@/components/ui/sidebar";
 import { getSession } from "@/lib/auth/session";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -156,17 +150,7 @@ export default async function ProfilePage() {
   const hasApplication = !!studentProfile;
 
   return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebar variant="inset" user={user} />
-      <SidebarInset>
-        <SiteHeader title="Profile" />
+    
         <div className="flex min-h-screen flex-col bg-muted/20">
           {/* Profile header */}
           <header className="flex items-center gap-4 border-b bg-background px-6 py-4">
@@ -543,8 +527,6 @@ export default async function ProfilePage() {
             )}
           </div>
         </div>
-      </SidebarInset>
-    </SidebarProvider>
   );
 }
 

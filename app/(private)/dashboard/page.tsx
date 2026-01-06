@@ -1,4 +1,4 @@
-import type React from "react"
+
 import Image from "next/image"
 import Link from "next/link"
 import { redirect } from "next/navigation"
@@ -13,12 +13,6 @@ import {
   BookOpen
 } from "lucide-react"
 
-import { AppSidebar } from "@/components/app-sidebar"
-import { SiteHeader } from "@/components/site-header"
-import {
-  SidebarInset,
-  SidebarProvider,
-} from "@/components/ui/sidebar"
 import { getSession } from "@/lib/auth/session"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -159,17 +153,6 @@ export default async function DashboardPage() {
   const applicationStatus = studentProfile?.applicationStatus || "not_started";
 
   return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebar variant="inset" user={user} />
-      <SidebarInset>
-        <SiteHeader />
         <div className="flex min-h-screen flex-col bg-muted/20">
           {/* Profile header */}
           <header className="flex items-center gap-4 border-b bg-background px-6 py-4">
@@ -400,7 +383,5 @@ export default async function DashboardPage() {
             </Card>
           </div>
         </div>
-      </SidebarInset>
-    </SidebarProvider>
   )
 }
