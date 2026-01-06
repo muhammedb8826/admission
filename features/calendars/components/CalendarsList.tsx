@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { IconRefresh, IconPlus, IconEye } from "@tabler/icons-react"
+import { IconRefresh, IconEye } from "@tabler/icons-react"
 import { ColumnDef } from "@tanstack/react-table"
 
 import type { CalendarTableRow, CalendarListItem } from "../types/calendar.types"
