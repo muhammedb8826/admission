@@ -1,6 +1,6 @@
 import { ProgramsList, getPrograms } from "@/features/programs";
 
-export default async function GraduatePage() {
+export default async function PostGraduatePage() {
   const programs = await getPrograms();
 
   return (
@@ -12,7 +12,7 @@ export default async function GraduatePage() {
           </h1>
         </div>
 
-        <ProgramsList programs={programs} initialFilter="graduate" showFilters={false} />
+        <ProgramsList programs={programs} initialFilter="postgraduate" showFilters={false} />
       </main>
     </div>
   );

@@ -2,6 +2,7 @@ import { strapiFetch } from "@/lib/strapi/client";
 import { StrapiCollectionResponse } from "@/lib/strapi/types";
 import { Program, ProgramType } from "../types/programs.types";
 
+// Types used only within this service to describe raw Strapi data
 type StrapiImage = {
   id: number;
   url: string;
@@ -9,29 +10,40 @@ type StrapiImage = {
   alternativeText?: string | null;
 };
 
-type StrapiProgramGroup = {
+type StrapiDepartment = {
   id: number;
-  number: number;
+  documentId: string;
   name: string;
+  code: string | null;
+  description: string | null;
 };
 
 type StrapiProgram = {
   id: number;
   documentId: string;
-  title: string;
+  name: string; // Changed from title to name
+  fullName: string;
   description: string;
-  type: ProgramType;
+  level: string; // "Undergraduate", "Postgraduate", etc.
   duration: number;
-  modeOfDelivery: string;
-  program_group?: StrapiProgramGroup | null;
+  mode: string; // Changed from modeOfDelivery to mode
+  totalCreditHours: number;
+  qualification: string;
+  department?: StrapiDepartment | null;
   image?: StrapiImage | null;
 };
 
 type StrapiProgramsResponse = StrapiCollectionResponse<StrapiProgram>;
 
-export async function fetchPrograms(): Promise<Program[]> {
+export async function getPrograms(): Promise<Program[]> {
   const response = await strapiFetch<StrapiProgramsResponse>("programs", {
-    params: { populate: "*" },
+    params: { 
+      populate: {
+        department: true,
+        image: true,
+        batches: true // Ensure batches are populated if you want to show them
+      } 
+    },
     next: { revalidate: 300 },
   });
 
@@ -39,28 +51,32 @@ export async function fetchPrograms(): Promise<Program[]> {
     return [];
   }
 
+  // Mapping the Strapi response to our clean Frontend Type (Program)
   return response.data.map((program): Program => ({
     id: program.id,
-    documentId: program.documentId,
-    title: program.title,
+    name: program.name,
+    fullName: program.fullName,
     description: program.description,
-    type: program.type,
     duration: program.duration,
-    modeOfDelivery: program.modeOfDelivery,
-    programGroup: program.program_group
+    level: program.level,
+    mode: program.mode,
+    totalCreditHours: program.totalCreditHours,
+    qualification: program.qualification,
+    department: program.department 
       ? {
-          id: program.program_group.id,
-          number: program.program_group.number,
-          name: program.program_group.name,
+          id: program.department.id,
+          documentId: program.department.documentId,
+          name: program.department.name,
+          code: program.department.code,
+          description: program.department.description,
         }
-      : null,
+      : undefined,
     image: program.image
       ? {
           url: program.image.url,
           formats: program.image.formats,
-          alternativeText: program.image.alternativeText ?? undefined,
+          alternativeText: program.image.alternativeText,
         }
-      : undefined,
+      : null,
   }));
 }
-

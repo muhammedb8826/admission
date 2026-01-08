@@ -8,7 +8,7 @@ export default async function ProgramsPage({ searchParams }: ProgramsPageProps) 
   const programs = await getPrograms();
   const params = await searchParams;
   const initialFilter =
-    params.type === "undergraduate" || params.type === "graduate"
+    params.type === "undergraduate" || params.type === "postgraduate"
       ? params.type
       : "all";
 

@@ -1,20 +1,32 @@
-export type ProgramType = "undergraduate" | "graduate";
+export type ProgramType = "undergraduate" | "postgraduate" | "phd" | "remedial" | "pgdt";
 
-export type ProgramGroup = {
+export type Department = {
   id: number;
-  number: number;
+  documentId: string;
   name: string;
+  code: string | null;
+  description: string | null;
 };
 
 export type Program = {
   id: number;
-  documentId: string;
-  title: string;
+  name: string;
+  fullName: string;
   description: string;
-  type: ProgramType;
   duration: number;
-  modeOfDelivery: string;
-  programGroup?: ProgramGroup | null;
+  level: string; // Values: "Undergraduate" | "Postgraduate" | "PhD" | "PGDT" | "Remedial"
+  mode: string;
+  totalCreditHours: number;
+  qualification: string;
+  department?: Department
+  batches?: Array<{
+    name: string;
+    startYear: number;
+    endYear: number;
+    academic_calendar?: {
+      academicYearRange: string;
+    } | null;
+  }>;
   image?: {
     url: string;
     formats?: Record<string, { url: string }>;
@@ -22,5 +34,5 @@ export type Program = {
   } | null;
 };
 
-export type ProgramsFilter = "all" | ProgramType;
+export type ProgramsFilter = "all" | "undergraduate" | "postgraduate" | "phd" | "remedial" | "pgdt";
 
