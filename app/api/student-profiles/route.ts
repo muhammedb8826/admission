@@ -46,6 +46,152 @@ export async function POST(request: NextRequest) {
     // Set the user relation to associate this profile with the logged-in user
     profileData.user = Number(session.userId);
 
+    // Helper function to clean component relations (for addresses)
+    const cleanComponentRelations = (obj: Record<string, unknown> | null | undefined): Record<string, unknown> | null | undefined => {
+      if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return obj;
+      
+      const cleaned: Record<string, unknown> = {};
+      
+      // Process all fields
+      for (const [key, value] of Object.entries(obj)) {
+        // For relation fields (country, region, zone, woreda), ensure they're just numbers
+        if (['country', 'region', 'zone', 'woreda'].includes(key)) {
+          if (typeof value === 'number') {
+            cleaned[key] = value;
+          } else if (value && typeof value === 'object' && 'set' in value && Array.isArray(value.set)) {
+            const setId = value.set[0]?.id;
+            if (setId && typeof setId === 'number') {
+              cleaned[key] = setId;
+            }
+          } else if (value !== null && value !== undefined) {
+            const numValue = Number(value);
+            if (!isNaN(numValue) && numValue > 0) {
+              cleaned[key] = numValue;
+            }
+          }
+        } else {
+          // For other fields, keep as is
+          cleaned[key] = value;
+        }
+      }
+      return cleaned;
+    };
+
+    // Education fields are RELATIONS, not components
+    // We need to create the education records first, then link them
+    let primaryEducationId: number | null = null;
+    let secondaryEducationId: number | null = null;
+    const tertiaryEducationIds: number[] = [];
+    
+    // Handle primary_education relation
+    if (profileData.primary_education && typeof profileData.primary_education === 'object') {
+      const primaryData = profileData.primary_education as Record<string, unknown>;
+      const cleanedPrimary = cleanComponentRelations(primaryData);
+      if (cleanedPrimary && typeof cleanedPrimary === 'object') {
+        delete (cleanedPrimary as Record<string, unknown>).id;
+      }
+      
+      const createResponse = await fetch(`${strapiUrl}/api/primary-educations`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(authToken && { Authorization: `Bearer ${authToken}` }),
+        },
+        body: JSON.stringify({ data: cleanedPrimary }),
+      });
+      
+      if (createResponse.ok) {
+        const createResult = await createResponse.json().catch(() => ({}));
+        primaryEducationId = createResult?.data?.id;
+      }
+      
+      // Replace with relation format
+      if (primaryEducationId) {
+        profileData.primary_education = { id: primaryEducationId };
+      } else {
+        delete profileData.primary_education;
+      }
+    }
+    
+    // Handle secondary_education relation
+    if (profileData.secondary_education && typeof profileData.secondary_education === 'object') {
+      const secondaryData = profileData.secondary_education as Record<string, unknown>;
+      const cleanedSecondary = cleanComponentRelations(secondaryData);
+      if (cleanedSecondary && typeof cleanedSecondary === 'object') {
+        delete (cleanedSecondary as Record<string, unknown>).id;
+      }
+      
+      const createResponse = await fetch(`${strapiUrl}/api/secondary-educations`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(authToken && { Authorization: `Bearer ${authToken}` }),
+        },
+        body: JSON.stringify({ data: cleanedSecondary }),
+      });
+      
+      if (createResponse.ok) {
+        const createResult = await createResponse.json().catch(() => ({}));
+        secondaryEducationId = createResult?.data?.id;
+      }
+      
+      // Replace with relation format
+      if (secondaryEducationId) {
+        profileData.secondary_education = { id: secondaryEducationId };
+      } else {
+        delete profileData.secondary_education;
+      }
+    }
+    
+    // Handle tertiary_educations relation (oneToMany)
+    if (profileData.tertiary_educations && Array.isArray(profileData.tertiary_educations)) {
+      for (const tertiaryData of profileData.tertiary_educations) {
+        if (tertiaryData && typeof tertiaryData === 'object') {
+          const tertiary = tertiaryData as Record<string, unknown>;
+          const cleanedTertiary = cleanComponentRelations(tertiary);
+          if (cleanedTertiary && typeof cleanedTertiary === 'object') {
+            delete (cleanedTertiary as Record<string, unknown>).id;
+          }
+          
+          // Use the correct endpoint name: tertiar-educations (note the spelling)
+          const createResponse = await fetch(`${strapiUrl}/api/tertiar-educations`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(authToken && { Authorization: `Bearer ${authToken}` }),
+            },
+            body: JSON.stringify({ data: cleanedTertiary }),
+          });
+          
+          const createResult = await createResponse.json().catch(() => ({}));
+          
+          if (createResponse.ok) {
+            if (createResult?.data?.id) {
+              tertiaryEducationIds.push(createResult.data.id);
+              console.log("Tertiary education created (POST):", createResult.data.id);
+            } else {
+              console.error("Tertiary education created but no ID returned (POST):", createResult);
+            }
+          } else {
+            console.error("Failed to create tertiary education (POST):", {
+              status: createResponse.status,
+              error: createResult,
+              url: `${strapiUrl}/api/tertiar-educations`,
+            });
+          }
+        }
+      }
+      
+      // Replace with relation format (oneToMany uses set)
+      if (tertiaryEducationIds.length > 0) {
+        profileData.tertiary_educations = { set: tertiaryEducationIds.map(id => ({ id })) };
+        console.log("Setting tertiary_educations relation (POST):", profileData.tertiary_educations);
+      } else {
+        console.warn("No tertiary education IDs collected (POST), removing from profile data");
+        delete profileData.tertiary_educations;
+      }
+    }
+
     const response = await fetch(`${strapiUrl}/api/student-profiles`, {
       method: "POST",
       headers: {
@@ -416,7 +562,7 @@ export async function PUT(request: NextRequest) {
       return cleaned;
     };
 
-    // Clean component relations in nested objects
+    // Clean component relations in nested objects (addresses are components)
     if (updateData.residentialAddress && typeof updateData.residentialAddress === 'object') {
       updateData.residentialAddress = cleanComponentRelations(updateData.residentialAddress as Record<string, unknown>) as typeof updateData.residentialAddress;
     }
@@ -426,14 +572,213 @@ export async function PUT(request: NextRequest) {
     if (updateData.personToBeContacted && typeof updateData.personToBeContacted === 'object') {
       updateData.personToBeContacted = cleanComponentRelations(updateData.personToBeContacted as Record<string, unknown>) as typeof updateData.personToBeContacted;
     }
+    
+    // Education fields are RELATIONS, not components
+    // We need to create/update the education records first, then link them
+    let primaryEducationId: number | null = null;
+    let secondaryEducationId: number | null = null;
+    const tertiaryEducationIds: number[] = [];
+    
+    // Handle primary_education relation
     if (updateData.primary_education && typeof updateData.primary_education === 'object') {
-      updateData.primary_education = cleanComponentRelations(updateData.primary_education as Record<string, unknown>) as typeof updateData.primary_education;
+      const primaryData = updateData.primary_education as Record<string, unknown>;
+      const existingId = primaryData.id as number | undefined;
+      
+      // Clean the education data (remove id, clean location relations)
+      const cleanedPrimary = cleanComponentRelations(primaryData);
+      if (cleanedPrimary && typeof cleanedPrimary === 'object') {
+        delete (cleanedPrimary as Record<string, unknown>).id;
+      }
+      
+      // Create or update primary education
+      if (existingId) {
+        // Update existing
+        const updateResponse = await fetch(`${strapiUrl}/api/primary-educations/${existingId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...(authToken && { Authorization: `Bearer ${authToken}` }),
+          },
+          body: JSON.stringify({ data: cleanedPrimary }),
+        });
+        
+        if (updateResponse.ok) {
+          const updateResult = await updateResponse.json().catch(() => ({}));
+          primaryEducationId = updateResult?.data?.id || existingId;
+        }
+      } else {
+        // Create new
+        const createResponse = await fetch(`${strapiUrl}/api/primary-educations`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(authToken && { Authorization: `Bearer ${authToken}` }),
+          },
+          body: JSON.stringify({ data: cleanedPrimary }),
+        });
+        
+        if (createResponse.ok) {
+          const createResult = await createResponse.json().catch(() => ({}));
+          primaryEducationId = createResult?.data?.id;
+        }
+      }
+      
+      // Replace with relation format
+      if (primaryEducationId) {
+        updateData.primary_education = { id: primaryEducationId };
+      } else {
+        delete updateData.primary_education;
+      }
     }
+    
+    // Handle secondary_education relation
     if (updateData.secondary_education && typeof updateData.secondary_education === 'object') {
-      updateData.secondary_education = cleanComponentRelations(updateData.secondary_education as Record<string, unknown>) as typeof updateData.secondary_education;
+      const secondaryData = updateData.secondary_education as Record<string, unknown>;
+      const existingId = secondaryData.id as number | undefined;
+      
+      // Clean the education data
+      const cleanedSecondary = cleanComponentRelations(secondaryData);
+      if (cleanedSecondary && typeof cleanedSecondary === 'object') {
+        delete (cleanedSecondary as Record<string, unknown>).id;
+      }
+      
+      // Create or update secondary education
+      if (existingId) {
+        const updateResponse = await fetch(`${strapiUrl}/api/secondary-educations/${existingId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...(authToken && { Authorization: `Bearer ${authToken}` }),
+          },
+          body: JSON.stringify({ data: cleanedSecondary }),
+        });
+        
+        if (updateResponse.ok) {
+          const updateResult = await updateResponse.json().catch(() => ({}));
+          secondaryEducationId = updateResult?.data?.id || existingId;
+        }
+      } else {
+        const createResponse = await fetch(`${strapiUrl}/api/secondary-educations`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(authToken && { Authorization: `Bearer ${authToken}` }),
+          },
+          body: JSON.stringify({ data: cleanedSecondary }),
+        });
+        
+        if (createResponse.ok) {
+          const createResult = await createResponse.json().catch(() => ({}));
+          secondaryEducationId = createResult?.data?.id;
+        }
+      }
+      
+      // Replace with relation format
+      if (secondaryEducationId) {
+        updateData.secondary_education = { id: secondaryEducationId };
+      } else {
+        delete updateData.secondary_education;
+      }
     }
+    
+    // Handle tertiary_educations relation (oneToMany)
     if (updateData.tertiary_educations && Array.isArray(updateData.tertiary_educations)) {
-      updateData.tertiary_educations = updateData.tertiary_educations.map(item => cleanComponentRelations(item as Record<string, unknown>) as typeof item);
+      console.log("Processing tertiary_educations:", {
+        count: updateData.tertiary_educations.length,
+        items: updateData.tertiary_educations.map((item: Record<string, unknown>) => ({
+          hasId: !!(item?.id),
+          institution: item?.institution as string | undefined,
+        })),
+      });
+      
+      for (const tertiaryData of updateData.tertiary_educations) {
+        if (tertiaryData && typeof tertiaryData === 'object') {
+          const tertiary = tertiaryData as Record<string, unknown>;
+          const existingId = tertiary.id as number | undefined;
+          
+          // Clean the education data
+          const cleanedTertiary = cleanComponentRelations(tertiary);
+          if (cleanedTertiary && typeof cleanedTertiary === 'object') {
+            delete (cleanedTertiary as Record<string, unknown>).id;
+          }
+          
+          console.log("Tertiary education data:", {
+            existingId,
+            cleanedData: cleanedTertiary,
+            url: existingId 
+              ? `${strapiUrl}/api/tertiar-educations/${existingId}`
+              : `${strapiUrl}/api/tertiar-educations`,
+          });
+          
+          // Create or update tertiary education
+          if (existingId) {
+            const updateResponse = await fetch(`${strapiUrl}/api/tertiar-educations/${existingId}`, {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json",
+                ...(authToken && { Authorization: `Bearer ${authToken}` }),
+              },
+              body: JSON.stringify({ data: cleanedTertiary }),
+            });
+            
+            const updateResult = await updateResponse.json().catch(() => ({}));
+            
+            if (updateResponse.ok) {
+              const tertiaryId = updateResult?.data?.id || existingId;
+              if (tertiaryId) {
+                tertiaryEducationIds.push(tertiaryId);
+                console.log("Tertiary education updated successfully:", tertiaryId);
+              }
+            } else {
+              console.error("Failed to update tertiary education:", {
+                status: updateResponse.status,
+                error: updateResult,
+                existingId,
+                url: `${strapiUrl}/api/tertiar-educations/${existingId}`,
+              });
+            }
+          } else {
+            // Use the correct endpoint name: tertiar-educations (note the spelling)
+            const createResponse = await fetch(`${strapiUrl}/api/tertiar-educations`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(authToken && { Authorization: `Bearer ${authToken}` }),
+              },
+              body: JSON.stringify({ data: cleanedTertiary }),
+            });
+            
+            const createResult = await createResponse.json().catch(() => ({}));
+            
+            if (createResponse.ok) {
+              if (createResult?.data?.id) {
+                tertiaryEducationIds.push(createResult.data.id);
+                console.log("Tertiary education created successfully:", createResult.data.id);
+              } else {
+                console.error("Tertiary education created but no ID returned:", createResult);
+              }
+            } else {
+              console.error("Failed to create tertiary education:", {
+                status: createResponse.status,
+                error: createResult,
+                cleanedData: cleanedTertiary,
+                url: `${strapiUrl}/api/tertiar-educations`,
+              });
+            }
+          }
+        }
+      }
+      
+      console.log("Tertiary education IDs collected:", tertiaryEducationIds);
+      
+      // Replace with relation format (oneToMany uses set)
+      if (tertiaryEducationIds.length > 0) {
+        updateData.tertiary_educations = { set: tertiaryEducationIds.map(id => ({ id })) };
+        console.log("Setting tertiary_educations relation:", updateData.tertiary_educations);
+      } else {
+        console.warn("No tertiary education IDs collected, removing from update");
+        delete updateData.tertiary_educations;
+      }
     }
 
     // Update the profile
@@ -450,7 +795,8 @@ export async function PUT(request: NextRequest) {
       return cleaned;
     };
 
-    // Remove ids from all components (Strapi doesn't allow id in component payloads)
+    // Remove ids from components only (addresses are components)
+    // NOTE: Education fields are relations, not components, so they're already handled above
     if (updateData.residentialAddress && typeof updateData.residentialAddress === 'object') {
       updateData.residentialAddress = removeIdFromComponent(updateData.residentialAddress as Record<string, unknown>) as typeof updateData.residentialAddress;
     }
@@ -459,15 +805,6 @@ export async function PUT(request: NextRequest) {
     }
     if (updateData.personToBeContacted && typeof updateData.personToBeContacted === 'object') {
       updateData.personToBeContacted = removeIdFromComponent(updateData.personToBeContacted as Record<string, unknown>) as typeof updateData.personToBeContacted;
-    }
-    if (updateData.primary_education && typeof updateData.primary_education === 'object') {
-      updateData.primary_education = removeIdFromComponent(updateData.primary_education as Record<string, unknown>) as typeof updateData.primary_education;
-    }
-    if (updateData.secondary_education && typeof updateData.secondary_education === 'object') {
-      updateData.secondary_education = removeIdFromComponent(updateData.secondary_education as Record<string, unknown>) as typeof updateData.secondary_education;
-    }
-    if (updateData.tertiary_educations && Array.isArray(updateData.tertiary_educations)) {
-      updateData.tertiary_educations = updateData.tertiary_educations.map(item => removeIdFromComponent(item as Record<string, unknown>) as typeof item);
     }
     
     // Try using numeric ID first, fall back to documentId if needed
