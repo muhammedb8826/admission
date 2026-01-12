@@ -683,9 +683,16 @@ export function StudentProfileCompletionForm() {
     }
   };
 
-  const nextStep = () => {
+  const nextStep = async () => {
     if (currentStep < TOTAL_STEPS) {
-      setCurrentStep(currentStep + 1);
+      // Save progress before moving to next step
+      const saveSuccessful = await saveProgress();
+      
+      // Only move to next step if save was successful
+      if (saveSuccessful) {
+        setCurrentStep(currentStep + 1);
+      }
+      // If save failed, error is already displayed by saveProgress
     }
   };
 
@@ -947,7 +954,8 @@ export function StudentProfileCompletionForm() {
                   setTimeout(() => {
                     setSubmitSuccess(false);
                   }, 3000);
-                  return; // Exit early on success
+                  setIsSaving(false);
+                  return true; // Exit early on success
                 } else {
                   // Retry also failed, fall through to error handling
                   console.error("Retry also failed:", retryResult);
@@ -992,7 +1000,8 @@ export function StudentProfileCompletionForm() {
                   setTimeout(() => {
                     setSubmitSuccess(false);
                   }, 3000);
-                  return; // Exit early on success
+                  setIsSaving(false);
+                  return true; // Exit early on success
                 } else {
                   // Create also failed, fall through to error handling
                   console.error("Create also failed:", createResult);
@@ -1050,10 +1059,13 @@ export function StudentProfileCompletionForm() {
       setTimeout(() => {
         setSubmitSuccess(false);
       }, 3000);
+      
+      return true; // Return success
     } catch (error) {
       console.error("Error saving progress:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to save progress. Please try again.";
       setSubmitError(errorMessage);
+      return false; // Return failure
     } finally {
       setIsSaving(false);
     }
