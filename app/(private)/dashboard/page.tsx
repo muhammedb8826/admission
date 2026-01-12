@@ -151,6 +151,7 @@ export default async function DashboardPage() {
 
   const hasApplication = !!studentProfile;
   const applicationStatus = studentProfile?.applicationStatus || "not_started";
+  const isProfileComplete = studentProfile?.isProfileComplete === true;
 
   return (
         <div className="flex min-h-screen flex-col bg-muted/20">
@@ -239,12 +240,21 @@ export default async function DashboardPage() {
                     <p className="text-sm text-muted-foreground">
                       You haven&apos;t started your application yet. Click the button below to begin the admission process.
                     </p>
-                    <Button asChild>
-                      <Link href="/dashboard/application">
-                        Start Application
-                        <ArrowRight className="ml-2 h-4 w-4" />
-                      </Link>
-                    </Button>
+                    {!isProfileComplete ? (
+                      <Button asChild>
+                        <Link href="/dashboard/profile/complete">
+                          Complete Profile First
+                          <ArrowRight className="ml-2 h-4 w-4" />
+                        </Link>
+                      </Button>
+                    ) : (
+                      <Button asChild>
+                        <Link href="/dashboard/application">
+                          Start Application
+                          <ArrowRight className="ml-2 h-4 w-4" />
+                        </Link>
+                      </Button>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -258,12 +268,26 @@ export default async function DashboardPage() {
                   <CardDescription>Manage your application</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Button asChild variant="outline" className="w-full">
-                    <Link href="/dashboard/application">
-                      <FileText className="mr-2 h-4 w-4" />
-                      {hasApplication ? "View Application" : "Start Application"}
-                    </Link>
-                  </Button>
+                  {!isProfileComplete ? (
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground mb-2">
+                        Complete your profile first to access the application
+                      </p>
+                      <Button asChild variant="outline" className="w-full">
+                        <Link href="/dashboard/profile/complete">
+                          <FileText className="mr-2 h-4 w-4" />
+                          Complete Profile
+                        </Link>
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button asChild variant="outline" className="w-full">
+                      <Link href="/dashboard/application">
+                        <FileText className="mr-2 h-4 w-4" />
+                        {hasApplication ? "View Application" : "Start Application"}
+                      </Link>
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
 

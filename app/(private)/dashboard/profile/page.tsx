@@ -39,7 +39,7 @@ async function getStudentProfile(email: string, userId: string) {
     // Fetch all profiles and filter server-side by logged-in user
     // This ensures security - we only return data for the authenticated user
     const response = await fetch(
-      `${strapiUrl}/api/student-profiles?populate=*`,
+      `${strapiUrl}/api/student-profiles?populate[residentialAddress][populate]=*&populate[birthAddress][populate]=*&populate[personToBeContacted][populate]=*`,
       {
         method: "GET",
         headers: {
@@ -148,6 +148,7 @@ export default async function ProfilePage() {
   const studentProfile = await getStudentProfile(session.email, session.userId);
 
   const hasApplication = !!studentProfile;
+  const isProfileComplete = studentProfile?.isProfileComplete === true;
 
   return (
     
@@ -178,17 +179,45 @@ export default async function ProfilePage() {
               </div>
               <p className="text-sm text-muted-foreground">{user.email}</p>
             </div>
-            {!hasApplication && (
-              <Button asChild>
-                <Link href="/dashboard/application">
-                  Start Application
-                </Link>
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {hasApplication && !isProfileComplete && (
+                <Button asChild variant="default">
+                  <Link href="/dashboard/profile/complete">
+                    Complete Profile
+                  </Link>
+                </Button>
+              )}
+              {!hasApplication && (
+                <Button asChild>
+                  <Link href="/dashboard/application">
+                    Start Application
+                  </Link>
+                </Button>
+              )}
+            </div>
           </header>
 
           {/* Main content */}
           <div className="flex flex-1 flex-col gap-6 px-4 py-6 lg:px-8">
+            {hasApplication && !isProfileComplete && (
+              <Card className="border-yellow-500/50 bg-yellow-50/50 dark:bg-yellow-950/20">
+                <CardHeader>
+                  <CardTitle className="text-yellow-800 dark:text-yellow-200">
+                    Profile Incomplete
+                  </CardTitle>
+                  <CardDescription className="text-yellow-700 dark:text-yellow-300">
+                    Your profile is not yet complete. Please complete your profile to continue.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button asChild>
+                    <Link href="/dashboard/profile/complete">
+                      Complete Your Profile
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
             {hasApplication ? (
               <>
                 {/* Personal Information */}
