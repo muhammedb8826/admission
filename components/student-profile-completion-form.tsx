@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -129,6 +129,9 @@ export function StudentProfileCompletionForm() {
   const [secondaryEducationId, setSecondaryEducationId] = useState<number | null>(null);
   const [nationalIdFileUrl, setNationalIdFileUrl] = useState<string | null>(null);
   const [isUploadingNationalId, setIsUploadingNationalId] = useState(false);
+  
+  // Track last saved form data to avoid unnecessary saves
+  const lastSavedFormDataRef = useRef<string | null>(null);
 
   // Location data state
   const [countries, setCountries] = useState<Country[]>([]);
@@ -417,6 +420,7 @@ export function StudentProfileCompletionForm() {
               }
             }
           }
+          
         }
       } catch (error) {
         console.error("Error loading profile:", error);
@@ -427,6 +431,13 @@ export function StudentProfileCompletionForm() {
 
     loadExistingProfile();
   }, []);
+
+  // Initialize last saved form data reference after profile is loaded and formData is set
+  useEffect(() => {
+    if (!isLoading && formData && Object.keys(formData).length > 0 && !lastSavedFormDataRef.current) {
+      lastSavedFormDataRef.current = JSON.stringify(formData);
+    }
+  }, [isLoading, formData]);
 
   // Helper function to fetch regions
   const fetchRegions = async (countryId: number, type: 'birth' | 'residential' | 'ptbc' | 'primary' | 'secondary' | 'tertiary') => {
@@ -683,16 +694,29 @@ export function StudentProfileCompletionForm() {
     }
   };
 
+  // Check if form data has changed since last save
+  const hasFormDataChanged = (): boolean => {
+    const currentFormDataString = JSON.stringify(formData);
+    return lastSavedFormDataRef.current !== currentFormDataString;
+  };
+
   const nextStep = async () => {
     if (currentStep < TOTAL_STEPS) {
-      // Save progress before moving to next step
-      const saveSuccessful = await saveProgress();
-      
-      // Only move to next step if save was successful
-      if (saveSuccessful) {
+      // Only save if form data has changed
+      if (hasFormDataChanged()) {
+        console.log("Form data changed, saving before moving to next step...");
+        const saveSuccessful = await saveProgress();
+        
+        // Only move to next step if save was successful
+        if (saveSuccessful) {
+          setCurrentStep(currentStep + 1);
+        }
+        // If save failed, error is already displayed by saveProgress
+      } else {
+        // No changes detected, just move to next step without saving
+        console.log("No changes detected, skipping save and moving to next step");
         setCurrentStep(currentStep + 1);
       }
-      // If save failed, error is already displayed by saveProgress
     }
   };
 
@@ -951,6 +975,10 @@ export function StudentProfileCompletionForm() {
                   console.log("Progress saved successfully after retry!");
                   setSubmitSuccess(true);
                   setSubmitError(null);
+                  
+                  // Update last saved form data reference
+                  lastSavedFormDataRef.current = JSON.stringify(formData);
+                  
                   setTimeout(() => {
                     setSubmitSuccess(false);
                   }, 3000);
@@ -997,6 +1025,10 @@ export function StudentProfileCompletionForm() {
                   console.log("Profile created successfully!");
                   setSubmitSuccess(true);
                   setSubmitError(null);
+                  
+                  // Update last saved form data reference
+                  lastSavedFormDataRef.current = JSON.stringify(formData);
+                  
                   setTimeout(() => {
                     setSubmitSuccess(false);
                   }, 3000);
@@ -1054,6 +1086,9 @@ export function StudentProfileCompletionForm() {
       console.log("Progress saved successfully to backend!");
       setSubmitSuccess(true);
       setSubmitError(null);
+      
+      // Update last saved form data reference
+      lastSavedFormDataRef.current = JSON.stringify(formData);
       
       // Clear success message after 3 seconds
       setTimeout(() => {
