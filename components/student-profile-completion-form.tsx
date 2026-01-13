@@ -1129,7 +1129,66 @@ export function StudentProfileCompletionForm() {
         }
         
         // Handle 400 - profile ID mismatch, update ID and retry
-        if (response.status === 400 && result?.details?.actualProfileId) {
+        if (response.status === 400 && (result?.details?.actualProfileId || result?.error?.includes("Profile ID mismatch"))) {
+          const actualProfileId = result?.details?.actualProfileId;
+          if (actualProfileId && actualProfileId !== profileId) {
+            console.log("Profile ID mismatch detected in saveProgress, updating to:", actualProfileId);
+            setProfileId(actualProfileId);
+            
+            // Retry the save with the correct ID
+            const retryBody = { data: { id: actualProfileId, ...extendedPayload } };
+            const retryResponse = await fetch(url, {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(retryBody),
+            });
+            
+            const retryResult = await retryResponse.json();
+            if (retryResponse.ok) {
+              const savedProfile = retryResult?.data?.data || retryResult?.data;
+              if (savedProfile?.id) {
+                setProfileId(savedProfile.id);
+                // Update component IDs if they exist
+                if (savedProfile.residentialAddress?.id) {
+                  setResidentialAddressId(savedProfile.residentialAddress.id);
+                }
+                if (savedProfile.birthAddress?.id) {
+                  setBirthAddressId(savedProfile.birthAddress.id);
+                }
+                if (savedProfile.personToBeContacted?.id) {
+                  setPersonToBeContactedId(savedProfile.personToBeContacted.id);
+                }
+                if (savedProfile.primary_education?.id) {
+                  setPrimaryEducationId(savedProfile.primary_education.id);
+                }
+                if (savedProfile.secondary_education?.id) {
+                  setSecondaryEducationId(savedProfile.secondary_education.id);
+                }
+                // Note: tertiary_educations, professional_experiences, and research_engagements
+                // are relations (oneToMany), so we don't track individual IDs for them
+                // They are handled by the API route when creating/updating
+              }
+              
+              // Update last saved form data reference
+              lastSavedFormDataRef.current = JSON.stringify(formData);
+              
+              setSubmitSuccess(true);
+              setSubmitError(null);
+              setTimeout(() => {
+                setSubmitSuccess(false);
+              }, 3000);
+              return true; // Success
+            } else {
+              // Retry also failed, fall through to error handling
+              console.error("Retry after ID update failed:", retryResult);
+            }
+          }
+        }
+        
+        // Handle 400 - profile ID mismatch (old format), update ID and retry
+        if (response.status === 400 && result?.details?.actualProfileId && !result?.error?.includes("Profile ID mismatch")) {
           const actualProfileId = result.details.actualProfileId;
           console.log("Profile ID mismatch detected, updating to:", actualProfileId);
           setProfileId(actualProfileId);

@@ -455,56 +455,40 @@ export async function PUT(request: NextRequest) {
 
     const verifyResult = await verifyResponse.json().catch(() => ({}));
     const userProfiles = Array.isArray(verifyResult?.data) ? verifyResult.data : (verifyResult?.data ? [verifyResult.data] : []);
-    const profile = userProfiles.find((p: { id?: number }) => p?.id === id);
     
-    console.log("Profile verification result:", {
+    if (userProfiles.length === 0) {
+      console.error("No profile found for user:", { userId });
+      return NextResponse.json(
+        { error: "Student profile not found. Please complete your profile first." },
+        { status: 404 }
+      );
+    }
+
+    // Always use the first (and should be only) profile for this user
+    // Since profiles are auto-created on registration, there should always be exactly one
+    const profile = userProfiles[0];
+    const actualProfileId = profile?.id;
+    const profileDocumentId = (profile as { documentId?: string })?.documentId;
+    
+    console.log("User's profile found (always use this ID for updates):", {
       requestedProfileId: id,
-      foundProfileId: profile?.id,
+      actualProfileId,
+      profileDocumentId,
       profileUserId: profile?.user?.id,
       loggedInUserId: userId,
-      found: !!profile,
+      profileMatches: actualProfileId === id,
       totalUserProfiles: userProfiles.length,
     });
 
-    // Verify we found the profile with the requested ID
-    // If not found but user has profiles, use the actual profile ID
-    let actualProfileId = id;
-    if (!profile || profile.id !== id) {
-      if (userProfiles.length > 0) {
-        const actualProfile = userProfiles[0];
-        actualProfileId = actualProfile?.id;
-        console.error("Profile ID mismatch:", {
-          requestedId: id,
-          actualProfileId,
-          userId,
-        });
-        
-        // Use the actual profile instead of the requested one
-        // This handles cases where the profile ID changed
-        if (actualProfile) {
-          console.log("Using actual profile ID:", actualProfileId, "instead of requested:", id);
-          // Update the profile reference to use the actual one
-          Object.assign(profile || {}, actualProfile);
-        } else {
-          return NextResponse.json(
-            { 
-              error: "Profile ID mismatch. Please refresh the page and try again.",
-              details: { requestedId: id, actualProfileId }
-            },
-            { status: 400 }
-          );
-        }
-      } else {
-        console.error("Profile not found in user's profiles:", {
-          requestedId: id,
-          userId,
-        });
-        
-        return NextResponse.json(
-          { error: "Student profile not found" },
-          { status: 404 }
-        );
-      }
+    // If the requested ID doesn't match the actual profile ID, log a warning
+    // But always use the actual profile ID to prevent duplicates
+    if (actualProfileId !== id) {
+      console.warn("Profile ID mismatch - using actual profile ID from database:", {
+        requestedId: id,
+        actualProfileId,
+        userId,
+        message: "Using the profile ID fetched by user ID, not the requested ID. This prevents duplicate profiles."
+      });
     }
 
     // Verify the profile belongs to the logged-in user (double-check)
@@ -1004,9 +988,8 @@ export async function PUT(request: NextRequest) {
     }
     
     // Try using numeric ID first, fall back to documentId if needed
-    // Use actualProfileId if it differs from requested id
-    const profileDocumentId = (profile as { documentId?: string })?.documentId;
-    let updateUrl = `${strapiUrl}/api/student-profiles/${actualProfileId}`;
+    // Use actualProfileId (always fetched by user ID to prevent duplicates)
+    const updateUrl = `${strapiUrl}/api/student-profiles/${actualProfileId}`;
     
     console.log("Updating profile (trying numeric ID first):", {
       requestedProfileId: id,
@@ -1068,14 +1051,15 @@ export async function PUT(request: NextRequest) {
           expectedId: actualProfileId,
           returnedId: result.data.id,
         });
-        // Return error to prevent profile duplication
+        // Return error with actualProfileId so client can update and retry
         return NextResponse.json(
           { 
-            error: "Update failed: Profile ID mismatch. Please refresh the page and try again.",
+            error: "Update failed: Profile ID mismatch. The system will retry with the correct profile ID.",
             details: { 
               requestedId: actualProfileId, 
               returnedId: result.data.id,
-              message: "The update created a new profile instead of updating the existing one"
+              actualProfileId: actualProfileId, // Provide this so client can update and retry
+              message: "The update created a new profile. Using the correct profile ID from database."
             }
           },
           { status: 400 }
@@ -1153,9 +1137,15 @@ export async function PUT(request: NextRequest) {
             match: docIdNumericId === actualProfileId,
           });
           
-          // Try updating with the numeric ID from documentId first
-          if (docIdNumericId && docIdNumericId !== actualProfileId) {
-            console.log("Numeric ID from documentId differs, trying update with documentId numeric ID:", docIdNumericId);
+          // Always try updating with the numeric ID from documentId first
+          // This prevents duplicates that occur when using documentId in the URL
+          if (docIdNumericId) {
+            console.log("Trying update with numeric ID from documentId fetch:", {
+              docIdNumericId,
+              actualProfileId,
+              match: docIdNumericId === actualProfileId,
+            });
+            
             const docIdNumericUrl = `${strapiUrl}/api/student-profiles/${docIdNumericId}`;
             const docIdNumericResponse = await fetch(docIdNumericUrl, {
               method: "PUT",
@@ -1169,120 +1159,151 @@ export async function PUT(request: NextRequest) {
             });
             const docIdNumericResult = await docIdNumericResponse.json().catch(() => ({}));
             
+            console.log("Update with numeric ID from documentId result:", {
+              ok: docIdNumericResponse.ok,
+              status: docIdNumericResponse.status,
+              returnedId: docIdNumericResult?.data?.id || null,
+              expectedId: docIdNumericId,
+            });
+            
             if (docIdNumericResponse.ok && docIdNumericResult?.data?.id === docIdNumericId) {
               console.log("Update with numeric ID from documentId succeeded:", docIdNumericId);
               // Update successful, return the result
               return NextResponse.json(docIdNumericResult, { status: 200 });
-            } else {
-              console.log("Update with numeric ID from documentId failed, falling back to documentId URL");
-            }
-          }
-          
-          // If numeric ID from documentId matches or update failed, proceed with documentId
-          if (docIdNumericId === actualProfileId || !docIdNumericId) {
-            console.log("DocumentId verified, proceeding with update using documentId");
-          
-            // When using documentId, we need to be careful
-            // Strapi identifies the record by documentId in the URL
-            // However, including the numeric id in the payload might help Strapi identify the correct record
-            // Try without id first, but if that creates duplicates, we'll need to include it
-            const updateDataForDocumentId = { ...updateData };
-            // Keep the id in the payload to help Strapi identify the correct record
-            // This might prevent creating duplicates
-            // updateDataForDocumentId.id = actualProfileId;
-            
-            updateUrl = `${strapiUrl}/api/student-profiles/${profileDocumentId}`;
-          
-          console.log("Attempting update with documentId:", {
-            documentId: profileDocumentId,
-            updateDataKeys: Object.keys(updateDataForDocumentId),
-            hasApiToken: !!apiToken,
-            apiTokenLength: apiToken?.length || 0,
-            url: updateUrl,
-            updateDataSample: JSON.stringify(updateDataForDocumentId).substring(0, 500),
-          });
-          
-          // Log a diagnostic check - try to fetch the profile first to verify API token works
-          if (apiToken) {
-            const diagnosticUrl = `${strapiUrl}/api/student-profiles/${profileDocumentId}?populate=*`;
-            const diagnosticResponse = await fetch(diagnosticUrl, {
-              method: "GET",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${apiToken}`,
-              },
-            });
-            console.log("API Token diagnostic check (GET):", {
-              ok: diagnosticResponse.ok,
-              status: diagnosticResponse.status,
-              canRead: diagnosticResponse.ok,
-            });
-          }
-          
-          // Use API token for documentId updates as it typically has more permissions
-          // User JWT might not have permission to update via documentId
-          response = await fetch(updateUrl, {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              ...(apiToken && { Authorization: `Bearer ${apiToken}` }),
-            },
-            body: JSON.stringify({
-              data: updateDataForDocumentId,
-            }),
-          });
-          result = await response.json().catch(() => ({}));
-          
-          console.log("DocumentId update result:", {
-            ok: response.ok,
-            status: response.status,
-            error: result?.error || null,
-            returnedId: result?.data?.id || null,
-          });
-          
-          // If documentId update failed with 403, try numeric ID with API token as final fallback
-          if (!response.ok && response.status === 403 && apiToken) {
-            console.log("DocumentId update failed with 403, trying numeric ID with API token as final fallback...");
-            const numericUpdateUrl = `${strapiUrl}/api/student-profiles/${actualProfileId}`;
-            response = await fetch(numericUpdateUrl, {
-              method: "PUT",
-              headers: {
-                "Content-Type": "application/json",
-                ...(apiToken && { Authorization: `Bearer ${apiToken}` }),
-              },
-              body: JSON.stringify({
-                data: updateData,
-              }),
-            });
-            result = await response.json().catch(() => ({}));
-            console.log("Final numeric ID with API token result:", {
-              ok: response.ok,
-              status: response.status,
-              error: result?.error || null,
-            });
-          }
-          
-            // Check if update created a new profile (different ID returned)
-            if (response.ok && result?.data?.id && result.data.id !== actualProfileId) {
-              console.error("Update with documentId created a new profile instead of updating:", {
-                expectedId: actualProfileId,
-                returnedId: result.data.id,
-                documentId: profileDocumentId,
+            } else if (docIdNumericResponse.ok && docIdNumericResult?.data?.id && docIdNumericResult.data.id !== docIdNumericId) {
+              // Still created a duplicate even with numeric ID
+              console.error("Update with numeric ID from documentId still created duplicate:", {
+                expectedId: docIdNumericId,
+                returnedId: docIdNumericResult.data.id,
               });
-              // Return error to prevent profile duplication
               return NextResponse.json(
                 { 
-                  error: "Update failed: Profile ID mismatch. Please refresh the page and try again.",
+                  error: "Update failed: Profile ID mismatch. The system will retry with the correct profile ID.",
                   details: { 
                     requestedId: actualProfileId, 
-                    returnedId: result.data.id,
-                    message: "The update created a new profile instead of updating the existing one"
+                    returnedId: docIdNumericResult.data.id,
+                    actualProfileId: actualProfileId,
+                    message: "The update created a new profile. Using the correct profile ID from database."
                   }
                 },
                 { status: 400 }
               );
+            } else if (docIdNumericResponse.status === 404) {
+              // If numeric ID update returns 404, try using documentId in URL
+              // Don't include id in payload - Strapi doesn't allow it and documentId in URL should be enough
+              console.log("Numeric ID update returned 404, trying documentId URL (without id in payload)...");
+              
+              const docIdUrl = `${strapiUrl}/api/student-profiles/${profileDocumentId}`;
+              const docIdResponse = await fetch(docIdUrl, {
+                method: "PUT",
+                headers: {
+                  "Content-Type": "application/json",
+                  ...(apiToken && { Authorization: `Bearer ${apiToken}` }),
+                },
+                body: JSON.stringify({
+                  data: updateData, // Don't include id - Strapi identifies by documentId in URL
+                }),
+              });
+              const docIdResult = await docIdResponse.json().catch(() => ({}));
+              
+              console.log("Update with documentId URL result:", {
+                ok: docIdResponse.ok,
+                status: docIdResponse.status,
+                returnedId: docIdResult?.data?.id || null,
+                expectedId: docIdNumericId,
+                documentId: profileDocumentId,
+              });
+              
+              if (docIdResponse.ok) {
+                const returnedId = docIdResult?.data?.id;
+                if (returnedId === docIdNumericId) {
+                  console.log("Update with documentId URL succeeded:", docIdNumericId);
+                  return NextResponse.json(docIdResult, { status: 200 });
+                } else if (returnedId && returnedId !== docIdNumericId) {
+                  console.error("Update with documentId URL created duplicate:", {
+                    expectedId: docIdNumericId,
+                    returnedId: returnedId,
+                  });
+                  return NextResponse.json(
+                    { 
+                      error: "Update failed: Profile ID mismatch. The system will retry with the correct profile ID.",
+                      details: { 
+                        requestedId: actualProfileId, 
+                        returnedId: returnedId,
+                        actualProfileId: actualProfileId,
+                      }
+                    },
+                    { status: 400 }
+                  );
+                } else {
+                  // Update succeeded but no ID returned - fetch the profile to verify
+                  console.log("Update succeeded but no ID in response, fetching profile to verify...");
+                  const verifyUrl = `${strapiUrl}/api/student-profiles/${profileDocumentId}`;
+                  const verifyResponse = await fetch(verifyUrl, {
+                    method: "GET",
+                    headers: {
+                      "Content-Type": "application/json",
+                      ...(apiToken && { Authorization: `Bearer ${apiToken}` }),
+                    },
+                  });
+                  if (verifyResponse.ok) {
+                    const verifyResult = await verifyResponse.json().catch(() => ({}));
+                    const verifiedId = verifyResult?.data?.id;
+                    if (verifiedId === docIdNumericId) {
+                      return NextResponse.json(verifyResult, { status: 200 });
+                    }
+                  }
+                  // If verification fails, return the original result
+                  return NextResponse.json(docIdResult, { status: 200 });
+                }
+              } else {
+                console.error("Update with documentId URL failed:", {
+                  status: docIdResponse.status,
+                  error: docIdResult?.error || null,
+                });
+                return NextResponse.json(
+                  { 
+                    error: "Failed to update profile. Please try again or contact support.",
+                    details: { 
+                      actualProfileId,
+                      docIdNumericId,
+                      error: docIdResult?.error || null,
+                      status: docIdResponse.status,
+                    }
+                  },
+                  { status: docIdResponse.status || 500 }
+                );
+              }
+            } else {
+              console.error("Update with numeric ID from documentId failed:", {
+                status: docIdNumericResponse.status,
+                error: docIdNumericResult?.error || null,
+                docIdNumericId,
+              });
+              return NextResponse.json(
+                { 
+                  error: "Failed to update profile. Please try again or contact support.",
+                  details: { 
+                    actualProfileId,
+                    docIdNumericId,
+                    error: docIdNumericResult?.error || null,
+                    status: docIdNumericResponse.status,
+                  }
+                },
+                { status: docIdNumericResponse.status || 500 }
+              );
             }
-          } // End of if (docIdNumericId === actualProfileId || !docIdNumericId)
+          } else {
+            console.error("No numeric ID found from documentId fetch, cannot update safely");
+            return NextResponse.json(
+              { 
+                error: "Failed to update profile: Could not determine profile ID.",
+                details: { actualProfileId, documentId: profileDocumentId }
+              },
+              { status: 400 }
+            );
+          }
+          
         } else {
           console.error("DocumentId verification failed:", {
             documentId: profileDocumentId,
