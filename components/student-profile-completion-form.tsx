@@ -1109,16 +1109,20 @@ export function StudentProfileCompletionForm() {
       if (!response.ok) {
         // Handle 403 Forbidden - provide helpful error message
         if (response.status === 403) {
+          // API returns { error: string, details: object }
+          // Strapi error structure: { error: { status, name, message, details } }
           const errorMessage = 
-            result?.details?.error?.message ||
-            result?.error?.message || 
-            result?.error || 
+            result?.error || // Direct error message from API route
+            result?.details?.error?.message || // Strapi error message
+            result?.error?.message || // Alternative structure
             result?.message || 
-            "Access denied. You don't have permission to save this profile. Please contact support if this issue persists.";
+            "Access denied. You don't have permission to save this profile. Please check Strapi permissions or contact support.";
           setSubmitError(errorMessage);
           console.error("403 Forbidden error in saveProgress:", {
             status: response.status,
-            error: result,
+            fullResult: result,
+            errorMessage: result?.error,
+            details: result?.details,
             profileId,
           });
           return false;
@@ -1593,7 +1597,40 @@ export function StudentProfileCompletionForm() {
         body: JSON.stringify(body),
       });
 
-      const result = await response.json();
+      // Get response text first to handle empty or malformed JSON
+      const responseText = await response.text();
+      let result: {
+        error?: string | { message?: string };
+        details?: { actualProfileId?: number; error?: { message?: string } };
+        data?: { data?: { id?: number }; id?: number };
+        message?: string;
+        profileIdChanged?: boolean;
+        newProfileId?: number;
+      } = {};
+      
+      try {
+        result = responseText ? JSON.parse(responseText) : {};
+      } catch (parseError) {
+        console.error("Failed to parse response JSON in handleSubmit:", {
+          parseError,
+          responseText,
+          status: response.status,
+          statusText: response.statusText,
+        });
+        result = { error: responseText || "Failed to parse server response" };
+      }
+      
+      console.log("handleSubmit response:", {
+        ok: response.ok,
+        status: response.status,
+        statusText: response.statusText,
+        responseTextLength: responseText?.length,
+        hasResult: !!result,
+        resultKeys: Object.keys(result),
+        resultError: result?.error,
+        resultDetails: result?.details,
+        fullResult: result,
+      });
 
       if (!response.ok) {
         // Handle 400 - profile ID mismatch, update ID and retry
@@ -1632,25 +1669,34 @@ export function StudentProfileCompletionForm() {
         
         // Handle 403 Forbidden - provide helpful error message
         if (response.status === 403) {
+          // API returns { error: string, details: object }
+          // Strapi error structure: { error: { status, name, message, details } }
           const errorMessage = 
-            result?.details?.error?.message ||
-            result?.error?.message || 
-            result?.error || 
+            (typeof result?.error === 'string' ? result.error : undefined) || // Direct error message from API route
+            result?.details?.error?.message || // Strapi error message
+            (typeof result?.error === 'object' && result.error?.message) || // Alternative structure
             result?.message || 
-            "Access denied. You don't have permission to update this profile. Please contact support if this issue persists.";
+            "Access denied. You don't have permission to update this profile. Please check Strapi permissions or contact support.";
           setSubmitError(errorMessage);
           console.error("403 Forbidden error:", {
             status: response.status,
-            error: result,
+            statusText: response.statusText,
+            fullResult: result,
+            resultStringified: JSON.stringify(result, null, 2),
+            errorMessage: result?.error,
+            details: result?.details,
+            detailsError: result?.details?.error,
             profileId,
             payloadKeys: Object.keys(extendedPayload),
+            url,
+            method,
           });
           throw new Error(errorMessage);
         }
         
         const errorMessage = 
-          result?.error?.message || 
-          result?.error || 
+          (typeof result?.error === 'object' && result.error?.message) ||
+          (typeof result?.error === 'string' ? result.error : undefined) ||
           result?.message || 
           `Failed to save profile (Status: ${response.status})`;
         setSubmitError(errorMessage);

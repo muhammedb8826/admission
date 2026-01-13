@@ -1095,8 +1095,27 @@ export async function PUT(request: NextRequest) {
             documentId: profileDocumentId,
             updateDataKeys: Object.keys(updateDataForDocumentId),
             hasApiToken: !!apiToken,
+            apiTokenLength: apiToken?.length || 0,
             url: updateUrl,
+            updateDataSample: JSON.stringify(updateDataForDocumentId).substring(0, 500),
           });
+          
+          // Log a diagnostic check - try to fetch the profile first to verify API token works
+          if (apiToken) {
+            const diagnosticUrl = `${strapiUrl}/api/student-profiles/${profileDocumentId}?populate=*`;
+            const diagnosticResponse = await fetch(diagnosticUrl, {
+              method: "GET",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${apiToken}`,
+              },
+            });
+            console.log("API Token diagnostic check (GET):", {
+              ok: diagnosticResponse.ok,
+              status: diagnosticResponse.status,
+              canRead: diagnosticResponse.ok,
+            });
+          }
           
           // Use API token for documentId updates as it typically has more permissions
           // User JWT might not have permission to update via documentId
@@ -1215,15 +1234,43 @@ export async function PUT(request: NextRequest) {
         response = retryResponse;
       }
 
-      const errorMessage =
-        result?.error?.message ||
-        result?.message ||
-        (response.status === 404 ? "Student profile not found" : 
-         response.status === 403 ? "You do not have permission to update this profile. Please check Strapi permissions." :
-         "Failed to update student profile");
+      let errorMessage: string;
+      if (response.status === 404) {
+        errorMessage = "Student profile not found";
+      } else if (response.status === 403) {
+        // Provide detailed error message for 403
+        // Diagnostic shows API token can READ but cannot UPDATE - this is a permissions issue
+        errorMessage = 
+          "Access denied: You do not have permission to update this profile. " +
+          "Diagnostic check shows the API token can READ the profile but cannot UPDATE it. " +
+          "This is a Strapi permissions configuration issue. Please check:\n\n" +
+          "1. API Token permissions (MOST LIKELY ISSUE):\n" +
+          "   - Go to Strapi Admin → Settings → API Tokens\n" +
+          "   - Edit the API token used in NEXT_PUBLIC_API_TOKEN\n" +
+          "   - Under Permissions, ensure 'student-profiles' has 'update' permission enabled\n" +
+          "   - Currently the token has 'find'/'findOne' (read) but NOT 'update' (write)\n\n" +
+          "2. User Role permissions:\n" +
+          "   - Go to Settings → Users & Permissions plugin → Roles → Authenticated\n" +
+          "   - Ensure 'student-profiles' has 'updateOwn' permission checked\n\n" +
+          "3. Content-Type permissions:\n" +
+          "   - Verify the 'student-profiles' content type allows updates in Strapi settings\n\n" +
+          "All update attempts (user JWT, API token with numeric ID, API token with documentId) failed with 403 Forbidden.";
+      } else {
+        errorMessage = result?.error?.message || result?.message || "Failed to update student profile";
+      }
       
       return NextResponse.json(
-        { error: errorMessage, details: result },
+        { 
+          error: errorMessage, 
+          details: {
+            ...result,
+            triedUserJwt: !!userJwt,
+            triedApiToken: !!apiToken,
+            triedDocumentId: !!profileDocumentId,
+            actualProfileId,
+            requestedProfileId: id,
+          }
+        },
         { status: response.status || 500 }
       );
     }
