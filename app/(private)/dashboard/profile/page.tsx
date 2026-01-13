@@ -38,7 +38,7 @@ async function getStudentProfile(userId: string) {
     
     // Fetch profile with all nested data, filtered by user ID
     const response = await fetch(
-      `${strapiUrl}/api/student-profiles?populate[residentialAddress][populate]=*&populate[birthAddress][populate]=*&populate[personToBeContacted][populate]=*&populate[primary_education][populate]=*&populate[secondary_education][populate]=*&populate[tertiary_educations][populate]=*&filters[user][id][$eq]=${userId}`,
+      `${strapiUrl}/api/student-profiles?populate[residentialAddress][populate]=*&populate[birthAddress][populate]=*&populate[personToBeContacted][populate]=*&populate[primary_education][populate]=*&populate[secondary_education][populate]=*&populate[tertiary_educations][populate]=*&populate[professional_experiences][populate]=*&populate[research_engagements][populate]=*&filters[user][id][$eq]=${userId}`,
       {
         method: "GET",
         headers: {
@@ -705,6 +705,86 @@ export default async function ProfilePage() {
                             </div>
                           </div>
                         )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Professional Experience */}
+                {studentProfile.professional_experiences && studentProfile.professional_experiences.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Professional Experience</CardTitle>
+                      <CardDescription>Your work experience</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {studentProfile.professional_experiences.map((experience: {
+                          organizationName?: string;
+                          numberOfYears?: number;
+                          positionDescription?: string;
+                        }, index: number) => (
+                          <div key={index} className="border-b pb-4 last:border-0 last:pb-0">
+                            <div className="grid gap-4 md:grid-cols-2">
+                              <div className="flex items-start gap-3">
+                                <Building className="h-5 w-5 text-muted-foreground mt-0.5" />
+                                <div className="flex-1 space-y-1">
+                                  <p className="text-sm text-muted-foreground">Organization</p>
+                                  <p className="text-sm font-medium">
+                                    {experience.organizationName || "Not provided"}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-start gap-3">
+                                <Calendar className="h-5 w-5 text-muted-foreground mt-0.5" />
+                                <div className="flex-1 space-y-1">
+                                  <p className="text-sm text-muted-foreground">Years of Experience</p>
+                                  <p className="text-sm font-medium">
+                                    {experience.numberOfYears || "Not provided"}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-start gap-3 md:col-span-2">
+                                <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
+                                <div className="flex-1 space-y-1">
+                                  <p className="text-sm text-muted-foreground">Position Description</p>
+                                  <p className="text-sm font-medium">
+                                    {experience.positionDescription || "Not provided"}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Research Engagement */}
+                {studentProfile.research_engagements && studentProfile.research_engagements.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Research Engagement</CardTitle>
+                      <CardDescription>Your research activities</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {studentProfile.research_engagements.map((research: {
+                          description?: string;
+                        }, index: number) => (
+                          <div key={index} className="border-b pb-4 last:border-0 last:pb-0">
+                            <div className="flex items-start gap-3">
+                              <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
+                              <div className="flex-1 space-y-1">
+                                <p className="text-sm text-muted-foreground">Description</p>
+                                <p className="text-sm font-medium">
+                                  {research.description || "Not provided"}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </CardContent>
                   </Card>

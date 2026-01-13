@@ -110,6 +110,16 @@ type ProfileFormData = {
   tertiaryRegion: number | null;
   tertiaryZone: number | null;
   tertiaryWoreda: number | null;
+  
+  // Professional Experience (array - we'll handle one for now)
+  professionalOrganizationName: string;
+  professionalNumberOfYears: string;
+  professionalPositionDescription: string;
+  professionalAttachment: number | null;
+  
+  // Research Engagement (array - we'll handle one for now)
+  researchDescription: string;
+  researchAttachment: number | null;
 };
 
 const TOTAL_STEPS = 2;
@@ -129,6 +139,10 @@ export function StudentProfileCompletionForm() {
   const [secondaryEducationId, setSecondaryEducationId] = useState<number | null>(null);
   const [nationalIdFileUrl, setNationalIdFileUrl] = useState<string | null>(null);
   const [isUploadingNationalId, setIsUploadingNationalId] = useState(false);
+  const [professionalAttachmentUrl, setProfessionalAttachmentUrl] = useState<string | null>(null);
+  const [isUploadingProfessionalAttachment, setIsUploadingProfessionalAttachment] = useState(false);
+  const [researchAttachmentUrl, setResearchAttachmentUrl] = useState<string | null>(null);
+  const [isUploadingResearchAttachment, setIsUploadingResearchAttachment] = useState(false);
   
   // Track last saved form data to avoid unnecessary saves
   const lastSavedFormDataRef = useRef<string | null>(null);
@@ -221,6 +235,16 @@ export function StudentProfileCompletionForm() {
     tertiaryRegion: null,
     tertiaryZone: null,
     tertiaryWoreda: null,
+    
+    // Professional Experience
+    professionalOrganizationName: "",
+    professionalNumberOfYears: "",
+    professionalPositionDescription: "",
+    professionalAttachment: null,
+    
+    // Research Engagement
+    researchDescription: "",
+    researchAttachment: null,
   });
 
   // Fetch countries on mount
@@ -245,7 +269,7 @@ export function StudentProfileCompletionForm() {
   useEffect(() => {
     const loadExistingProfile = async () => {
       try {
-        const response = await fetch("/api/student-profiles?populate[residentialAddress][populate]=*&populate[birthAddress][populate]=*&populate[personToBeContacted][populate]=*&populate[primary_education][populate]=*&populate[secondary_education][populate]=*&populate[tertiary_educations][populate]=*");
+        const response = await fetch("/api/student-profiles?populate[residentialAddress][populate]=*&populate[birthAddress][populate]=*&populate[personToBeContacted][populate]=*&populate[primary_education][populate]=*&populate[secondary_education][populate]=*&populate[tertiary_educations][populate]=*&populate[professional_experiences][populate]=*&populate[research_engagements][populate]=*");
         if (response.ok) {
           const result = await response.json();
           
@@ -345,6 +369,16 @@ export function StudentProfileCompletionForm() {
               tertiaryRegion: profile.tertiary_educations?.[0]?.region?.id || null,
               tertiaryZone: profile.tertiary_educations?.[0]?.zone?.id || null,
               tertiaryWoreda: profile.tertiary_educations?.[0]?.woreda?.id || null,
+              
+              // Professional Experience (take first one if array exists)
+              professionalOrganizationName: profile.professional_experiences?.[0]?.organizationName || "",
+              professionalNumberOfYears: profile.professional_experiences?.[0]?.numberOfYears?.toString() || "",
+              professionalPositionDescription: profile.professional_experiences?.[0]?.positionDescription || "",
+              professionalAttachment: profile.professional_experiences?.[0]?.attachments?.id || (typeof profile.professional_experiences?.[0]?.attachments === 'number' ? profile.professional_experiences[0].attachments : null),
+              
+              // Research Engagement (take first one if array exists)
+              researchDescription: profile.research_engagements?.[0]?.description || "",
+              researchAttachment: profile.research_engagements?.[0]?.attachments?.id || (typeof profile.research_engagements?.[0]?.attachments === 'number' ? profile.research_engagements[0].attachments : null),
             });
 
             // Load location dropdowns for existing data
@@ -598,6 +632,104 @@ export function StudentProfileCompletionForm() {
       setSubmitError(error instanceof Error ? error.message : "Failed to upload file");
     } finally {
       setIsUploadingNationalId(false);
+    }
+  };
+
+  const handleProfessionalAttachmentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      setSubmitError("File size must be less than 10MB");
+      return;
+    }
+
+    setIsUploadingProfessionalAttachment(true);
+    setSubmitError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to upload file");
+      }
+
+      // Set the file ID in form data
+      handleInputChange("professionalAttachment", result.id);
+      
+      // Set the file URL for preview
+      if (result.url) {
+        const strapiUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+        const fileUrl = result.url.startsWith('http') 
+          ? result.url 
+          : `${strapiUrl}${result.url}`;
+        setProfessionalAttachmentUrl(fileUrl);
+      } else {
+        setProfessionalAttachmentUrl(null);
+      }
+    } catch (error) {
+      console.error("Error uploading file:", error);
+      setSubmitError("An error occurred while uploading the file");
+    } finally {
+      setIsUploadingProfessionalAttachment(false);
+    }
+  };
+
+  const handleResearchAttachmentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      setSubmitError("File size must be less than 10MB");
+      return;
+    }
+
+    setIsUploadingResearchAttachment(true);
+    setSubmitError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to upload file");
+      }
+
+      // Set the file ID in form data
+      handleInputChange("researchAttachment", result.id);
+      
+      // Set the file URL for preview
+      if (result.url) {
+        const strapiUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+        const fileUrl = result.url.startsWith('http') 
+          ? result.url 
+          : `${strapiUrl}${result.url}`;
+        setResearchAttachmentUrl(fileUrl);
+      } else {
+        setResearchAttachmentUrl(null);
+      }
+    } catch (error) {
+      console.error("Error uploading file:", error);
+      setSubmitError("An error occurred while uploading the file");
+    } finally {
+      setIsUploadingResearchAttachment(false);
     }
   };
 
@@ -904,13 +1036,64 @@ export function StudentProfileCompletionForm() {
         payload.tertiary_educations = [tertiaryEducation];
       }
 
+      // Build professional experience data
+      type ProfessionalExperienceData = {
+        id?: number;
+        organizationName?: string;
+        numberOfYears?: number;
+        positionDescription?: string;
+        attachments?: number[] | null;
+      };
+
+      const professionalExperience: ProfessionalExperienceData = {};
+      if (formData.professionalOrganizationName) professionalExperience.organizationName = formData.professionalOrganizationName;
+      if (formData.professionalNumberOfYears) professionalExperience.numberOfYears = Number(formData.professionalNumberOfYears);
+      if (formData.professionalPositionDescription) professionalExperience.positionDescription = formData.professionalPositionDescription;
+      if (formData.professionalAttachment) professionalExperience.attachments = [formData.professionalAttachment];
+
+      // Build research engagement data
+      type ResearchEngagementData = {
+        id?: number;
+        description?: string;
+        attachments?: number[] | null;
+      };
+
+      const researchEngagement: ResearchEngagementData = {};
+      if (formData.researchDescription) researchEngagement.description = formData.researchDescription;
+      if (formData.researchAttachment) researchEngagement.attachments = [formData.researchAttachment];
+
+      // Add professional experience and research engagement to payload
+      type ExtendedProfilePayload = ProfilePayload & {
+        professional_experiences?: ProfessionalExperienceData[];
+        research_engagements?: ResearchEngagementData[];
+      };
+      
+      const extendedPayload = payload as ExtendedProfilePayload;
+      if (Object.keys(professionalExperience).length > 0) {
+        extendedPayload.professional_experiences = [professionalExperience];
+        console.log("Professional experience payload (saveProgress):", {
+          hasAttachment: !!professionalExperience.attachments,
+          attachmentId: professionalExperience.attachments,
+          formDataAttachment: formData.professionalAttachment,
+          allFields: Object.keys(professionalExperience),
+        });
+      }
+      if (Object.keys(researchEngagement).length > 0) {
+        extendedPayload.research_engagements = [researchEngagement];
+        console.log("Research engagement payload (saveProgress):", {
+          hasAttachment: !!researchEngagement.attachments,
+          attachmentId: researchEngagement.attachments,
+          formDataAttachment: formData.researchAttachment,
+        });
+      }
+
       const url = "/api/student-profiles";
       const method = profileId ? "PUT" : "POST";
       const body = profileId 
-        ? { data: { id: profileId, ...payload } }
-        : { data: payload };
+        ? { data: { id: profileId, ...extendedPayload } }
+        : { data: extendedPayload };
 
-      console.log("Saving progress to backend:", { method, url, profileId, payloadKeys: Object.keys(payload) });
+      console.log("Saving progress to backend:", { method, url, profileId, payloadKeys: Object.keys(extendedPayload) });
 
       const response = await fetch(url, {
         method,
@@ -924,6 +1107,79 @@ export function StudentProfileCompletionForm() {
       console.log("Save progress response:", { ok: response.ok, status: response.status, hasData: !!result?.data });
 
       if (!response.ok) {
+        // Handle 403 Forbidden - provide helpful error message
+        if (response.status === 403) {
+          const errorMessage = 
+            result?.details?.error?.message ||
+            result?.error?.message || 
+            result?.error || 
+            result?.message || 
+            "Access denied. You don't have permission to save this profile. Please contact support if this issue persists.";
+          setSubmitError(errorMessage);
+          console.error("403 Forbidden error in saveProgress:", {
+            status: response.status,
+            error: result,
+            profileId,
+          });
+          return false;
+        }
+        
+        // Handle 400 - profile ID mismatch, update ID and retry
+        if (response.status === 400 && result?.details?.actualProfileId) {
+          const actualProfileId = result.details.actualProfileId;
+          console.log("Profile ID mismatch detected, updating to:", actualProfileId);
+          setProfileId(actualProfileId);
+          
+          // Retry the save with the correct ID
+          const retryBody = { data: { id: actualProfileId, ...extendedPayload } };
+          const retryResponse = await fetch(url, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(retryBody),
+          });
+          
+          const retryResult = await retryResponse.json();
+          if (retryResponse.ok) {
+            const savedProfile = retryResult?.data?.data || retryResult?.data;
+            if (savedProfile?.id) {
+              setProfileId(savedProfile.id);
+              // Update component IDs if they exist
+              if (savedProfile.residentialAddress?.id) {
+                setResidentialAddressId(savedProfile.residentialAddress.id);
+              }
+              if (savedProfile.birthAddress?.id) {
+                setBirthAddressId(savedProfile.birthAddress.id);
+              }
+              if (savedProfile.personToBeContacted?.id) {
+                setPersonToBeContactedId(savedProfile.personToBeContacted.id);
+              }
+              if (savedProfile.primary_education?.id) {
+                setPrimaryEducationId(savedProfile.primary_education.id);
+              }
+              if (savedProfile.secondary_education?.id) {
+                setSecondaryEducationId(savedProfile.secondary_education.id);
+              }
+            }
+            console.log("Progress saved successfully after ID update!");
+            setSubmitSuccess(true);
+            setSubmitError(null);
+            
+            // Update last saved form data reference
+            lastSavedFormDataRef.current = JSON.stringify(formData);
+            
+            setTimeout(() => {
+              setSubmitSuccess(false);
+            }, 3000);
+            setIsSaving(false);
+            return true; // Exit early on success
+          } else {
+            // Retry also failed, fall through to error handling
+            console.error("Retry after ID update failed:", retryResult);
+          }
+        }
+        
         // Handle 404 - profile not found, try to reload profile or create new one
         if (response.status === 404) {
           console.log("Profile not found, attempting to reload profile data...");
@@ -1280,8 +1536,48 @@ export function StudentProfileCompletionForm() {
         payload.tertiary_educations = [tertiaryEducation];
       }
 
+      // Build professional experience data
+      type ProfessionalExperienceData = {
+        id?: number;
+        organizationName?: string;
+        numberOfYears?: number;
+        positionDescription?: string;
+        attachments?: number[] | null;
+      };
+
+      const professionalExperience: ProfessionalExperienceData = {};
+      if (formData.professionalOrganizationName) professionalExperience.organizationName = formData.professionalOrganizationName;
+      if (formData.professionalNumberOfYears) professionalExperience.numberOfYears = Number(formData.professionalNumberOfYears);
+      if (formData.professionalPositionDescription) professionalExperience.positionDescription = formData.professionalPositionDescription;
+      if (formData.professionalAttachment) professionalExperience.attachments = [formData.professionalAttachment];
+
+      // Build research engagement data
+      type ResearchEngagementData = {
+        id?: number;
+        description?: string;
+        attachments?: number[] | null;
+      };
+
+      const researchEngagement: ResearchEngagementData = {};
+      if (formData.researchDescription) researchEngagement.description = formData.researchDescription;
+      if (formData.researchAttachment) researchEngagement.attachments = [formData.researchAttachment];
+
+      // Add professional experience and research engagement to payload
+      type ExtendedProfilePayload = ProfilePayload & {
+        professional_experiences?: ProfessionalExperienceData[];
+        research_engagements?: ResearchEngagementData[];
+      };
+      
+      const extendedPayload = payload as ExtendedProfilePayload;
+      if (Object.keys(professionalExperience).length > 0) {
+        extendedPayload.professional_experiences = [professionalExperience];
+      }
+      if (Object.keys(researchEngagement).length > 0) {
+        extendedPayload.research_engagements = [researchEngagement];
+      }
+
       // Mark profile as complete
-      payload.isProfileComplete = true;
+      extendedPayload.isProfileComplete = true;
 
       const url = "/api/student-profiles";
       const method = profileId ? "PUT" : "POST";
@@ -1300,13 +1596,86 @@ export function StudentProfileCompletionForm() {
       const result = await response.json();
 
       if (!response.ok) {
+        // Handle 400 - profile ID mismatch, update ID and retry
+        if (response.status === 400 && result?.details?.actualProfileId) {
+          const actualProfileId = result.details.actualProfileId;
+          console.log("Profile ID mismatch detected in handleSubmit, updating to:", actualProfileId);
+          setProfileId(actualProfileId);
+          
+          // Retry the save with the correct ID
+          const retryBody = { data: { id: actualProfileId, ...extendedPayload, isProfileComplete: true } };
+          const retryResponse = await fetch(url, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(retryBody),
+          });
+          
+          const retryResult = await retryResponse.json();
+          if (retryResponse.ok) {
+            const savedProfile = retryResult?.data?.data || retryResult?.data;
+            if (savedProfile?.id) {
+              setProfileId(savedProfile.id);
+            }
+            setSubmitSuccess(true);
+            setTimeout(() => {
+              router.push("/dashboard/profile");
+            }, 2000);
+            setIsSaving(false);
+            return; // Exit early on success
+          } else {
+            // Retry also failed, fall through to error handling
+            console.error("Retry after ID update failed:", retryResult);
+          }
+        }
+        
+        // Handle 403 Forbidden - provide helpful error message
+        if (response.status === 403) {
+          const errorMessage = 
+            result?.details?.error?.message ||
+            result?.error?.message || 
+            result?.error || 
+            result?.message || 
+            "Access denied. You don't have permission to update this profile. Please contact support if this issue persists.";
+          setSubmitError(errorMessage);
+          console.error("403 Forbidden error:", {
+            status: response.status,
+            error: result,
+            profileId,
+            payloadKeys: Object.keys(extendedPayload),
+          });
+          throw new Error(errorMessage);
+        }
+        
         const errorMessage = 
           result?.error?.message || 
           result?.error || 
           result?.message || 
-          "Failed to save profile";
+          `Failed to save profile (Status: ${response.status})`;
         setSubmitError(errorMessage);
+        console.error("Save profile error:", {
+          status: response.status,
+          error: result,
+          profileId,
+        });
         throw new Error(errorMessage);
+      }
+
+      // Success - update profile ID if it changed
+      const savedProfile = result?.data?.data || result?.data;
+      
+      // Check if profile ID changed (indicates a new profile was created)
+      if (result?.profileIdChanged && result?.newProfileId) {
+        console.warn("Profile ID changed during final save:", {
+          oldId: profileId,
+          newId: result.newProfileId,
+        });
+        setProfileId(result.newProfileId);
+        setSubmitError("Profile was saved but a new profile was created. Please refresh the page.");
+      } else if (savedProfile?.id && savedProfile.id !== profileId) {
+        console.log("Profile ID changed from", profileId, "to", savedProfile.id);
+        setProfileId(savedProfile.id);
       }
 
       setSubmitSuccess(true);
@@ -2291,6 +2660,123 @@ export function StudentProfileCompletionForm() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Professional Experience */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Professional Experience</CardTitle>
+              <CardDescription>Your professional work experience</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="professionalOrganizationName">Organization Name</Label>
+                  <Input
+                    id="professionalOrganizationName"
+                    value={formData.professionalOrganizationName}
+                    onChange={(e) => handleInputChange("professionalOrganizationName", e.target.value)}
+                    placeholder="e.g., Rift Valley"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="professionalNumberOfYears">Number of Years</Label>
+                  <Input
+                    id="professionalNumberOfYears"
+                    type="number"
+                    value={formData.professionalNumberOfYears}
+                    onChange={(e) => handleInputChange("professionalNumberOfYears", e.target.value)}
+                    placeholder="e.g., 2"
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="professionalPositionDescription">Position Description</Label>
+                  <Input
+                    id="professionalPositionDescription"
+                    value={formData.professionalPositionDescription}
+                    onChange={(e) => handleInputChange("professionalPositionDescription", e.target.value)}
+                    placeholder="e.g., Nursery"
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="professionalAttachment">Attachment</Label>
+                  <Input
+                    id="professionalAttachment"
+                    type="file"
+                    onChange={handleProfessionalAttachmentUpload}
+                    disabled={isUploadingProfessionalAttachment}
+                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                  />
+                  {isUploadingProfessionalAttachment && (
+                    <p className="text-sm text-muted-foreground">Uploading...</p>
+                  )}
+                  {professionalAttachmentUrl && (
+                    <div className="mt-2">
+                      <a 
+                        href={professionalAttachmentUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-600 hover:underline"
+                      >
+                        View uploaded file
+                      </a>
+                    </div>
+                  )}
+                  {formData.professionalAttachment && !professionalAttachmentUrl && (
+                    <p className="text-sm text-muted-foreground">File is attached</p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Research Engagement */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Research Engagement</CardTitle>
+              <CardDescription>Your research activities and engagements</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="researchDescription">Description</Label>
+                  <Input
+                    id="researchDescription"
+                    value={formData.researchDescription}
+                    onChange={(e) => handleInputChange("researchDescription", e.target.value)}
+                    placeholder="e.g., Research"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="researchAttachment">Attachment</Label>
+                  <Input
+                    id="researchAttachment"
+                    type="file"
+                    onChange={handleResearchAttachmentUpload}
+                    disabled={isUploadingResearchAttachment}
+                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                  />
+                  {isUploadingResearchAttachment && (
+                    <p className="text-sm text-muted-foreground">Uploading...</p>
+                  )}
+                  {researchAttachmentUrl && (
+                    <div className="mt-2">
+                      <a 
+                        href={researchAttachmentUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-600 hover:underline"
+                      >
+                        View uploaded file
+                      </a>
+                    </div>
+                  )}
+                  {formData.researchAttachment && !researchAttachmentUrl && (
+                    <p className="text-sm text-muted-foreground">File is attached</p>
+                  )}
                 </div>
               </div>
             </CardContent>
