@@ -1059,12 +1059,75 @@ export async function PUT(request: NextRequest) {
         ok: response.ok,
         status: response.status,
         error: result?.error || null,
+        returnedId: result?.data?.id || null,
       });
+      
+      // Check if update created a new profile (different ID returned)
+      if (response.ok && result?.data?.id && result.data.id !== actualProfileId) {
+        console.error("Update with API token on numeric ID created a new profile instead of updating:", {
+          expectedId: actualProfileId,
+          returnedId: result.data.id,
+        });
+        // Return error to prevent profile duplication
+        return NextResponse.json(
+          { 
+            error: "Update failed: Profile ID mismatch. Please refresh the page and try again.",
+            details: { 
+              requestedId: actualProfileId, 
+              returnedId: result.data.id,
+              message: "The update created a new profile instead of updating the existing one"
+            }
+          },
+          { status: 400 }
+        );
+      }
     }
 
-    // If numeric ID failed with 404 (or still 403 after API token), try with documentId
+    // If numeric ID failed with 404, try with API token (user JWT might not have access to that ID)
+    if (!response.ok && response.status === 404 && apiToken) {
+      console.log("Numeric ID failed with 404, trying with API token...");
+      response = await fetch(updateUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(apiToken && { Authorization: `Bearer ${apiToken}` }),
+        },
+        body: JSON.stringify({
+          data: updateData,
+        }),
+      });
+      result = await response.json().catch(() => ({}));
+      console.log("API token retry on 404 result:", {
+        ok: response.ok,
+        status: response.status,
+        error: result?.error || null,
+        returnedId: result?.data?.id || null,
+      });
+      
+      // Check if update created a new profile
+      if (response.ok && result?.data?.id && result.data.id !== actualProfileId) {
+        console.error("Update with API token on numeric ID (404 retry) created a new profile:", {
+          expectedId: actualProfileId,
+          returnedId: result.data.id,
+        });
+        return NextResponse.json(
+          { 
+            error: "Update failed: Profile ID mismatch. Please refresh the page and try again.",
+            details: { 
+              requestedId: actualProfileId, 
+              returnedId: result.data.id,
+              message: "The update created a new profile instead of updating the existing one"
+            }
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    // If numeric ID still failed with 404 or 403, try with documentId as last resort
+    // Note: documentId updates sometimes create duplicates, so we prefer numeric ID
     if (!response.ok && (response.status === 404 || response.status === 403) && profileDocumentId) {
-      console.log("Numeric ID failed, trying with documentId...");
+      console.log("Numeric ID failed, trying with documentId as last resort...");
       
       // First, verify the documentId exists by fetching it
       const verifyDocIdUrl = `${strapiUrl}/api/student-profiles/${profileDocumentId}`;
@@ -1080,16 +1143,55 @@ export async function PUT(request: NextRequest) {
         const verifyDocIdResult = await verifyDocIdResponse.json().catch(() => ({}));
         const docIdProfile = verifyDocIdResult?.data;
         
-        if (docIdProfile && docIdProfile.id === actualProfileId) {
-          console.log("DocumentId verified, proceeding with update using documentId");
+        if (docIdProfile) {
+          // Use the numeric ID from the documentId fetch, as it might be more accurate
+          const docIdNumericId = docIdProfile.id;
+          console.log("DocumentId verified, found numeric ID:", {
+            documentId: profileDocumentId,
+            numericIdFromDocId: docIdNumericId,
+            actualProfileId,
+            match: docIdNumericId === actualProfileId,
+          });
           
-          // When using documentId, do NOT include id in the payload
-          // Strapi identifies the record by documentId in the URL
-          // Remove any id field from updateData to avoid "Invalid key id" error
-          const updateDataForDocumentId = { ...updateData };
-          delete (updateDataForDocumentId as Record<string, unknown>).id;
+          // Try updating with the numeric ID from documentId first
+          if (docIdNumericId && docIdNumericId !== actualProfileId) {
+            console.log("Numeric ID from documentId differs, trying update with documentId numeric ID:", docIdNumericId);
+            const docIdNumericUrl = `${strapiUrl}/api/student-profiles/${docIdNumericId}`;
+            const docIdNumericResponse = await fetch(docIdNumericUrl, {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json",
+                ...(apiToken && { Authorization: `Bearer ${apiToken}` }),
+              },
+              body: JSON.stringify({
+                data: updateData,
+              }),
+            });
+            const docIdNumericResult = await docIdNumericResponse.json().catch(() => ({}));
+            
+            if (docIdNumericResponse.ok && docIdNumericResult?.data?.id === docIdNumericId) {
+              console.log("Update with numeric ID from documentId succeeded:", docIdNumericId);
+              // Update successful, return the result
+              return NextResponse.json(docIdNumericResult, { status: 200 });
+            } else {
+              console.log("Update with numeric ID from documentId failed, falling back to documentId URL");
+            }
+          }
           
-          updateUrl = `${strapiUrl}/api/student-profiles/${profileDocumentId}`;
+          // If numeric ID from documentId matches or update failed, proceed with documentId
+          if (docIdNumericId === actualProfileId || !docIdNumericId) {
+            console.log("DocumentId verified, proceeding with update using documentId");
+          
+            // When using documentId, we need to be careful
+            // Strapi identifies the record by documentId in the URL
+            // However, including the numeric id in the payload might help Strapi identify the correct record
+            // Try without id first, but if that creates duplicates, we'll need to include it
+            const updateDataForDocumentId = { ...updateData };
+            // Keep the id in the payload to help Strapi identify the correct record
+            // This might prevent creating duplicates
+            // updateDataForDocumentId.id = actualProfileId;
+            
+            updateUrl = `${strapiUrl}/api/student-profiles/${profileDocumentId}`;
           
           console.log("Attempting update with documentId:", {
             documentId: profileDocumentId,
@@ -1160,29 +1262,27 @@ export async function PUT(request: NextRequest) {
             });
           }
           
-          // Check if update created a new profile (different ID returned)
-          if (response.ok && result?.data?.id && result.data.id !== actualProfileId) {
-            console.error("Update with documentId created a new profile instead of updating:", {
-              expectedId: actualProfileId,
-              returnedId: result.data.id,
-              documentId: profileDocumentId,
-            });
-            // Return error to prevent profile duplication
-            return NextResponse.json(
-              { 
-                error: "Update failed: Profile ID mismatch. Please refresh the page and try again.",
-                details: { 
-                  requestedId: actualProfileId, 
-                  returnedId: result.data.id,
-                  message: "The update created a new profile instead of updating the existing one"
-                }
-              },
-              { status: 400 }
-            );
-          }
-          
-          // If documentId update failed with 403, we already tried API token, so no further action needed
-          // But if it failed for another reason, we'll fall through to the numeric ID fallback below
+            // Check if update created a new profile (different ID returned)
+            if (response.ok && result?.data?.id && result.data.id !== actualProfileId) {
+              console.error("Update with documentId created a new profile instead of updating:", {
+                expectedId: actualProfileId,
+                returnedId: result.data.id,
+                documentId: profileDocumentId,
+              });
+              // Return error to prevent profile duplication
+              return NextResponse.json(
+                { 
+                  error: "Update failed: Profile ID mismatch. Please refresh the page and try again.",
+                  details: { 
+                    requestedId: actualProfileId, 
+                    returnedId: result.data.id,
+                    message: "The update created a new profile instead of updating the existing one"
+                  }
+                },
+                { status: 400 }
+              );
+            }
+          } // End of if (docIdNumericId === actualProfileId || !docIdNumericId)
         } else {
           console.error("DocumentId verification failed:", {
             documentId: profileDocumentId,

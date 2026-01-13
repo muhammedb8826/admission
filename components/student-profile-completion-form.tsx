@@ -1042,25 +1042,25 @@ export function StudentProfileCompletionForm() {
         organizationName?: string;
         numberOfYears?: number;
         positionDescription?: string;
-        attachments?: number[] | null;
+        attachments?: number | null;
       };
 
       const professionalExperience: ProfessionalExperienceData = {};
       if (formData.professionalOrganizationName) professionalExperience.organizationName = formData.professionalOrganizationName;
       if (formData.professionalNumberOfYears) professionalExperience.numberOfYears = Number(formData.professionalNumberOfYears);
       if (formData.professionalPositionDescription) professionalExperience.positionDescription = formData.professionalPositionDescription;
-      if (formData.professionalAttachment) professionalExperience.attachments = [formData.professionalAttachment];
+      if (formData.professionalAttachment) professionalExperience.attachments = formData.professionalAttachment;
 
       // Build research engagement data
       type ResearchEngagementData = {
         id?: number;
         description?: string;
-        attachments?: number[] | null;
+        attachments?: number | null;
       };
 
       const researchEngagement: ResearchEngagementData = {};
       if (formData.researchDescription) researchEngagement.description = formData.researchDescription;
-      if (formData.researchAttachment) researchEngagement.attachments = [formData.researchAttachment];
+      if (formData.researchAttachment) researchEngagement.attachments = formData.researchAttachment;
 
       // Add professional experience and research engagement to payload
       type ExtendedProfilePayload = ProfilePayload & {
@@ -1546,25 +1546,25 @@ export function StudentProfileCompletionForm() {
         organizationName?: string;
         numberOfYears?: number;
         positionDescription?: string;
-        attachments?: number[] | null;
+        attachments?: number | null;
       };
 
       const professionalExperience: ProfessionalExperienceData = {};
       if (formData.professionalOrganizationName) professionalExperience.organizationName = formData.professionalOrganizationName;
       if (formData.professionalNumberOfYears) professionalExperience.numberOfYears = Number(formData.professionalNumberOfYears);
       if (formData.professionalPositionDescription) professionalExperience.positionDescription = formData.professionalPositionDescription;
-      if (formData.professionalAttachment) professionalExperience.attachments = [formData.professionalAttachment];
+      if (formData.professionalAttachment) professionalExperience.attachments = formData.professionalAttachment;
 
       // Build research engagement data
       type ResearchEngagementData = {
         id?: number;
         description?: string;
-        attachments?: number[] | null;
+        attachments?: number | null;
       };
 
       const researchEngagement: ResearchEngagementData = {};
       if (formData.researchDescription) researchEngagement.description = formData.researchDescription;
-      if (formData.researchAttachment) researchEngagement.attachments = [formData.researchAttachment];
+      if (formData.researchAttachment) researchEngagement.attachments = formData.researchAttachment;
 
       // Add professional experience and research engagement to payload
       type ExtendedProfilePayload = ProfilePayload & {
