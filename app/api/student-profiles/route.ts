@@ -127,9 +127,6 @@ const buildUserFilter = (rawUserId: string) => {
       isNumericUserId
         ? `filters[userId][$eq]=${numericUserId}`
         : `filters[userId][$eq]=${encodeURIComponent(trimmedUserId)}`,
-      isNumericUserId
-        ? `filters[user][id][$eq]=${numericUserId}`
-        : `filters[user][documentId][$eq]=${encodeURIComponent(trimmedUserId)}`,
     ],
   };
 };
@@ -154,16 +151,7 @@ const fetchUserProfiles = async ({
   const hasNumericUserIdentifier = Number.isFinite(numericUserIdentifier);
 
   const matchesUser = (profile: Record<string, unknown>) => {
-    const profileUser = profile.user as { id?: number; documentId?: string } | undefined;
     const profileUserId = profile.userId as unknown;
-
-    if (profileUser?.id !== undefined && hasNumericUserIdentifier && profileUser.id === numericUserIdentifier) {
-      return true;
-    }
-
-    if (profileUser?.documentId && profileUser.documentId === userIdentifierString) {
-      return true;
-    }
 
     if (typeof profileUserId === "number" && hasNumericUserIdentifier && profileUserId === numericUserIdentifier) {
       return true;
@@ -290,7 +278,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { userIdentifier, userFilters } = buildUserFilter(session.userId);
-    const populateQuery = "populate=user";
+    const populateQuery = "";
     const verifyResult = await fetchUserProfiles({
       strapiUrl,
       userFilters,
@@ -338,7 +326,7 @@ export async function POST(request: NextRequest) {
     );
     
     // Set the user relation to associate this profile with the logged-in user
-    profileData.user = userIdentifier;
+    profileData.userId = userIdentifier;
 
     // Addresses are components; normalize relation fields to documentId connect payloads
 
@@ -934,10 +922,6 @@ export async function GET(request: NextRequest) {
     let filteredData = null;
     
     type ProfileData = {
-      user?: {
-        id?: number;
-        documentId?: string;
-      };
       userId?: string | number;
       [key: string]: unknown;
     };
@@ -946,8 +930,6 @@ export async function GET(request: NextRequest) {
       const { userIdentifier } = buildUserFilter(session.userId);
       filteredData = responseData.find((profile: ProfileData) => {
         return (
-          profile.user?.id === userIdentifier ||
-          profile.user?.documentId === userIdentifier ||
           profile.userId === userIdentifier ||
           profile.userId === Number(userIdentifier)
         );
@@ -1024,7 +1006,7 @@ export async function PUT(request: NextRequest) {
     const verifyResponse = await fetchUserProfiles({
       strapiUrl,
       userFilters,
-      populateQuery: "populate=user",
+      populateQuery: "",
       authToken: apiToken,
       userIdentifier,
     });
@@ -1049,7 +1031,7 @@ export async function PUT(request: NextRequest) {
       const createData = Object.fromEntries(
         Object.entries(body.data).filter(([key]) => key !== "email" && key !== "id" && key !== "documentId")
       );
-      createData.user = userIdentifier;
+      createData.userId = userIdentifier;
 
       const createResponse = await fetch(`${strapiUrl}/api/student-profiles`, {
         method: "POST",
