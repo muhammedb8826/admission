@@ -229,8 +229,10 @@ export async function POST(request: NextRequest) {
     // Education fields are RELATIONS, not components
     // We need to create the education records first, then link them
     let primaryEducationId: number | null = null;
+    let primaryEducationDocumentId: string | null = null;
     let secondaryEducationId: number | null = null;
-    const tertiaryEducationIds: number[] = [];
+    let secondaryEducationDocumentId: string | null = null;
+    const tertiaryEducationIdentifiers: Array<string | number> = [];
     
     // Handle primary_education relation
     if (profileData.primary_education && typeof profileData.primary_education === 'object') {
@@ -258,6 +260,7 @@ export async function POST(request: NextRequest) {
         if (updateResponse.ok) {
           const updateResult = await updateResponse.json().catch(() => ({}));
           primaryEducationId = updateResult?.data?.id || existingId;
+          primaryEducationDocumentId = updateResult?.data?.documentId || null;
         }
       } else {
         // Create new
@@ -273,12 +276,15 @@ export async function POST(request: NextRequest) {
       if (createResponse.ok) {
         const createResult = await createResponse.json().catch(() => ({}));
         primaryEducationId = createResult?.data?.id;
+        primaryEducationDocumentId = createResult?.data?.documentId || null;
         }
       }
       
-      // Replace with relation format
-      if (primaryEducationId) {
-        profileData.primary_education = { id: primaryEducationId };
+      // Replace with relation format (prefer documentId if available)
+      if (primaryEducationDocumentId || primaryEducationId) {
+        profileData.primary_education = {
+          connect: [primaryEducationDocumentId || primaryEducationId],
+        };
       } else {
         delete profileData.primary_education;
       }
@@ -309,6 +315,7 @@ export async function POST(request: NextRequest) {
         if (updateResponse.ok) {
           const updateResult = await updateResponse.json().catch(() => ({}));
           secondaryEducationId = updateResult?.data?.id || existingId;
+          secondaryEducationDocumentId = updateResult?.data?.documentId || null;
         }
       } else {
       const createResponse = await fetch(`${strapiUrl}/api/secondary-educations`, {
@@ -323,12 +330,15 @@ export async function POST(request: NextRequest) {
       if (createResponse.ok) {
         const createResult = await createResponse.json().catch(() => ({}));
         secondaryEducationId = createResult?.data?.id;
+        secondaryEducationDocumentId = createResult?.data?.documentId || null;
         }
       }
       
-      // Replace with relation format
-      if (secondaryEducationId) {
-        profileData.secondary_education = { id: secondaryEducationId };
+      // Replace with relation format (prefer documentId if available)
+      if (secondaryEducationDocumentId || secondaryEducationId) {
+        profileData.secondary_education = {
+          connect: [secondaryEducationDocumentId || secondaryEducationId],
+        };
       } else {
         delete profileData.secondary_education;
       }
@@ -361,9 +371,9 @@ export async function POST(request: NextRequest) {
             const updateResult = await updateResponse.json().catch(() => ({}));
             
             if (updateResponse.ok) {
-              const tertiaryId = updateResult?.data?.id || existingId;
+              const tertiaryId = updateResult?.data?.documentId || updateResult?.data?.id || existingId;
               if (tertiaryId) {
-                tertiaryEducationIds.push(tertiaryId);
+                tertiaryEducationIdentifiers.push(tertiaryId);
                 console.log("Tertiary education updated:", tertiaryId);
               }
             } else {
@@ -387,11 +397,12 @@ export async function POST(request: NextRequest) {
           const createResult = await createResponse.json().catch(() => ({}));
           
           if (createResponse.ok) {
-            if (createResult?.data?.id) {
-              tertiaryEducationIds.push(createResult.data.id);
-                console.log("Tertiary education created:", createResult.data.id);
+            const tertiaryId = createResult?.data?.documentId || createResult?.data?.id;
+            if (tertiaryId) {
+              tertiaryEducationIdentifiers.push(tertiaryId);
+              console.log("Tertiary education created:", tertiaryId);
             } else {
-                console.error("Tertiary education created but no ID returned:", createResult);
+              console.error("Tertiary education created but no ID returned:", createResult);
             }
           } else {
               console.error("Failed to create tertiary education:", {
@@ -405,12 +416,134 @@ export async function POST(request: NextRequest) {
       }
       
       // Replace with relation format (oneToMany uses set)
-      if (tertiaryEducationIds.length > 0) {
-        profileData.tertiary_educations = { set: tertiaryEducationIds.map(id => ({ id })) };
+      if (tertiaryEducationIdentifiers.length > 0) {
+        profileData.tertiary_educations = { set: tertiaryEducationIdentifiers };
         console.log("Setting tertiary_educations relation:", profileData.tertiary_educations);
       } else {
         console.warn("No tertiary education IDs collected, removing from profile data");
         delete profileData.tertiary_educations;
+      }
+    }
+
+    // Handle professional_experiences relation (oneToMany)
+    const professionalExperienceIdentifiers: Array<string | number> = [];
+    if (profileData.professional_experiences && Array.isArray(profileData.professional_experiences)) {
+      console.log("Processing professional_experiences (POST):", {
+        count: profileData.professional_experiences.length,
+      });
+
+      for (const professionalData of profileData.professional_experiences) {
+        if (professionalData && typeof professionalData === "object") {
+          const professional = professionalData as Record<string, unknown>;
+          const existingId = professional.id as number | undefined;
+
+          const cleanedProfessional = { ...professional };
+          delete cleanedProfessional.id;
+
+          if (existingId) {
+            const updateResponse = await fetch(`${strapiUrl}/api/professional-experiences/${existingId}`, {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json",
+                ...(authToken && { Authorization: `Bearer ${authToken}` }),
+              },
+              body: JSON.stringify({ data: cleanedProfessional }),
+            });
+
+            const updateResult = await updateResponse.json().catch(() => ({}));
+            if (updateResponse.ok) {
+              const professionalId =
+                updateResult?.data?.documentId || updateResult?.data?.id || existingId;
+              if (professionalId) {
+                professionalExperienceIdentifiers.push(professionalId);
+              }
+            }
+          } else {
+            const createResponse = await fetch(`${strapiUrl}/api/professional-experiences`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(authToken && { Authorization: `Bearer ${authToken}` }),
+              },
+              body: JSON.stringify({ data: cleanedProfessional }),
+            });
+
+            const createResult = await createResponse.json().catch(() => ({}));
+            if (createResponse.ok) {
+              const professionalId = createResult?.data?.documentId || createResult?.data?.id;
+              if (professionalId) {
+                professionalExperienceIdentifiers.push(professionalId);
+              }
+            }
+          }
+        }
+      }
+
+      if (professionalExperienceIdentifiers.length > 0) {
+        profileData.professional_experiences = { set: professionalExperienceIdentifiers };
+      } else {
+        delete profileData.professional_experiences;
+      }
+    }
+
+    // Handle research_engagements relation (oneToMany)
+    const researchEngagementIdentifiers: Array<string | number> = [];
+    if (profileData.research_engagements && Array.isArray(profileData.research_engagements)) {
+      console.log("Processing research_engagements (POST):", {
+        count: profileData.research_engagements.length,
+      });
+
+      for (const researchData of profileData.research_engagements) {
+        if (researchData && typeof researchData === "object") {
+          const research = researchData as Record<string, unknown>;
+          const existingId = research.id as number | undefined;
+
+          const cleanedResearch = { ...research };
+          delete cleanedResearch.id;
+
+          if (existingId) {
+            const updateResponse = await fetch(`${strapiUrl}/api/research-engagements/${existingId}`, {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json",
+                ...(authToken && { Authorization: `Bearer ${authToken}` }),
+              },
+              body: JSON.stringify({ data: cleanedResearch }),
+            });
+
+            const updateResult = await updateResponse.json().catch(() => ({}));
+            if (updateResponse.ok) {
+              const researchId =
+                updateResult?.data?.documentId || updateResult?.data?.id || existingId;
+              if (researchId) {
+                researchEngagementIdentifiers.push(researchId);
+              }
+            }
+          } else {
+            const createResponse = await fetch(`${strapiUrl}/api/research-engagements`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(authToken && { Authorization: `Bearer ${authToken}` }),
+              },
+              body: JSON.stringify({ data: cleanedResearch }),
+            });
+
+            const createResult = await createResponse.json().catch(() => ({}));
+            if (createResponse.ok) {
+              const researchId = createResult?.data?.documentId || createResult?.data?.id;
+              if (researchId) {
+                researchEngagementIdentifiers.push(researchId);
+              }
+            }
+          }
+        }
+      }
+
+      if (researchEngagementIdentifiers.length > 0) {
+        profileData.research_engagements = { set: researchEngagementIdentifiers };
+      } else {
+        delete profileData.research_engagements;
       }
     }
 
@@ -904,8 +1037,10 @@ export async function PUT(request: NextRequest) {
     // Education fields are RELATIONS, not components
     // We need to create/update the education records first, then link them
     let primaryEducationId: number | null = null;
+    let primaryEducationDocumentId: string | null = null;
     let secondaryEducationId: number | null = null;
-    const tertiaryEducationIds: number[] = [];
+    let secondaryEducationDocumentId: string | null = null;
+    const tertiaryEducationIdentifiers: Array<string | number> = [];
     
     // Handle primary_education relation
     if (updateData.primary_education && typeof updateData.primary_education === 'object') {
@@ -933,6 +1068,7 @@ export async function PUT(request: NextRequest) {
         if (updateResponse.ok) {
           const updateResult = await updateResponse.json().catch(() => ({}));
           primaryEducationId = updateResult?.data?.id || existingId;
+          primaryEducationDocumentId = updateResult?.data?.documentId || null;
         }
       } else {
         // Create new
@@ -948,12 +1084,15 @@ export async function PUT(request: NextRequest) {
         if (createResponse.ok) {
           const createResult = await createResponse.json().catch(() => ({}));
           primaryEducationId = createResult?.data?.id;
+          primaryEducationDocumentId = createResult?.data?.documentId || null;
         }
       }
       
-      // Replace with relation format
-      if (primaryEducationId) {
-        updateData.primary_education = { id: primaryEducationId };
+      // Replace with relation format (prefer documentId if available)
+      if (primaryEducationDocumentId || primaryEducationId) {
+        updateData.primary_education = {
+          connect: [primaryEducationDocumentId || primaryEducationId],
+        };
       } else {
         delete updateData.primary_education;
       }
@@ -984,6 +1123,7 @@ export async function PUT(request: NextRequest) {
         if (updateResponse.ok) {
           const updateResult = await updateResponse.json().catch(() => ({}));
           secondaryEducationId = updateResult?.data?.id || existingId;
+          secondaryEducationDocumentId = updateResult?.data?.documentId || null;
         }
       } else {
         const createResponse = await fetch(`${strapiUrl}/api/secondary-educations`, {
@@ -998,12 +1138,15 @@ export async function PUT(request: NextRequest) {
         if (createResponse.ok) {
           const createResult = await createResponse.json().catch(() => ({}));
           secondaryEducationId = createResult?.data?.id;
+          secondaryEducationDocumentId = createResult?.data?.documentId || null;
         }
       }
       
-      // Replace with relation format
-      if (secondaryEducationId) {
-        updateData.secondary_education = { id: secondaryEducationId };
+      // Replace with relation format (prefer documentId if available)
+      if (secondaryEducationDocumentId || secondaryEducationId) {
+        updateData.secondary_education = {
+          connect: [secondaryEducationDocumentId || secondaryEducationId],
+        };
       } else {
         delete updateData.secondary_education;
       }
@@ -1052,9 +1195,9 @@ export async function PUT(request: NextRequest) {
             const updateResult = await updateResponse.json().catch(() => ({}));
             
             if (updateResponse.ok) {
-              const tertiaryId = updateResult?.data?.id || existingId;
+              const tertiaryId = updateResult?.data?.documentId || updateResult?.data?.id || existingId;
               if (tertiaryId) {
-                tertiaryEducationIds.push(tertiaryId);
+                tertiaryEducationIdentifiers.push(tertiaryId);
                 console.log("Tertiary education updated successfully:", tertiaryId);
               }
             } else {
@@ -1079,9 +1222,10 @@ export async function PUT(request: NextRequest) {
             const createResult = await createResponse.json().catch(() => ({}));
             
             if (createResponse.ok) {
-              if (createResult?.data?.id) {
-                tertiaryEducationIds.push(createResult.data.id);
-                console.log("Tertiary education created successfully:", createResult.data.id);
+              const tertiaryId = createResult?.data?.documentId || createResult?.data?.id;
+              if (tertiaryId) {
+                tertiaryEducationIdentifiers.push(tertiaryId);
+                console.log("Tertiary education created successfully:", tertiaryId);
               } else {
                 console.error("Tertiary education created but no ID returned:", createResult);
               }
@@ -1097,11 +1241,11 @@ export async function PUT(request: NextRequest) {
         }
       }
       
-      console.log("Tertiary education IDs collected:", tertiaryEducationIds);
+      console.log("Tertiary education IDs collected:", tertiaryEducationIdentifiers);
       
       // Replace with relation format (oneToMany uses set)
-      if (tertiaryEducationIds.length > 0) {
-        updateData.tertiary_educations = { set: tertiaryEducationIds.map(id => ({ id })) };
+      if (tertiaryEducationIdentifiers.length > 0) {
+        updateData.tertiary_educations = { set: tertiaryEducationIdentifiers };
         console.log("Setting tertiary_educations relation:", updateData.tertiary_educations);
       } else {
         console.warn("No tertiary education IDs collected, removing from update");
@@ -1110,7 +1254,7 @@ export async function PUT(request: NextRequest) {
     }
     
     // Handle professional_experiences relation (oneToMany)
-    const professionalExperienceIds: number[] = [];
+    const professionalExperienceIdentifiers: Array<string | number> = [];
     if (updateData.professional_experiences && Array.isArray(updateData.professional_experiences)) {
       console.log("Processing professional_experiences:", {
         count: updateData.professional_experiences.length,
@@ -1149,9 +1293,10 @@ export async function PUT(request: NextRequest) {
             const updateResult = await updateResponse.json().catch(() => ({}));
             
             if (updateResponse.ok) {
-              const professionalId = updateResult?.data?.id || existingId;
+              const professionalId =
+                updateResult?.data?.documentId || updateResult?.data?.id || existingId;
               if (professionalId) {
-                professionalExperienceIds.push(professionalId);
+                professionalExperienceIdentifiers.push(professionalId);
                 console.log("Professional experience updated successfully:", professionalId);
               }
             } else {
@@ -1174,9 +1319,10 @@ export async function PUT(request: NextRequest) {
             const createResult = await createResponse.json().catch(() => ({}));
             
             if (createResponse.ok) {
-              if (createResult?.data?.id) {
-                professionalExperienceIds.push(createResult.data.id);
-                console.log("Professional experience created successfully:", createResult.data.id);
+              const professionalId = createResult?.data?.documentId || createResult?.data?.id;
+              if (professionalId) {
+                professionalExperienceIdentifiers.push(professionalId);
+                console.log("Professional experience created successfully:", professionalId);
               } else {
                 console.error("Professional experience created but no ID returned:", createResult);
               }
@@ -1192,8 +1338,8 @@ export async function PUT(request: NextRequest) {
       }
       
       // Replace with relation format (oneToMany uses set)
-      if (professionalExperienceIds.length > 0) {
-        updateData.professional_experiences = { set: professionalExperienceIds.map(id => ({ id })) };
+      if (professionalExperienceIdentifiers.length > 0) {
+        updateData.professional_experiences = { set: professionalExperienceIdentifiers };
         console.log("Setting professional_experiences relation:", updateData.professional_experiences);
       } else {
         console.warn("No professional experience IDs collected, removing from update");
@@ -1202,7 +1348,7 @@ export async function PUT(request: NextRequest) {
     }
     
     // Handle research_engagements relation (oneToMany)
-    const researchEngagementIds: number[] = [];
+    const researchEngagementIdentifiers: Array<string | number> = [];
     if (updateData.research_engagements && Array.isArray(updateData.research_engagements)) {
       console.log("Processing research_engagements:", {
         count: updateData.research_engagements.length,
@@ -1241,9 +1387,10 @@ export async function PUT(request: NextRequest) {
             const updateResult = await updateResponse.json().catch(() => ({}));
             
             if (updateResponse.ok) {
-              const researchId = updateResult?.data?.id || existingId;
+              const researchId =
+                updateResult?.data?.documentId || updateResult?.data?.id || existingId;
               if (researchId) {
-                researchEngagementIds.push(researchId);
+                researchEngagementIdentifiers.push(researchId);
                 console.log("Research engagement updated successfully:", researchId);
               }
             } else {
@@ -1266,9 +1413,10 @@ export async function PUT(request: NextRequest) {
             const createResult = await createResponse.json().catch(() => ({}));
             
             if (createResponse.ok) {
-              if (createResult?.data?.id) {
-                researchEngagementIds.push(createResult.data.id);
-                console.log("Research engagement created successfully:", createResult.data.id);
+              const researchId = createResult?.data?.documentId || createResult?.data?.id;
+              if (researchId) {
+                researchEngagementIdentifiers.push(researchId);
+                console.log("Research engagement created successfully:", researchId);
               } else {
                 console.error("Research engagement created but no ID returned:", createResult);
               }
@@ -1284,8 +1432,8 @@ export async function PUT(request: NextRequest) {
       }
       
       // Replace with relation format (oneToMany uses set)
-      if (researchEngagementIds.length > 0) {
-        updateData.research_engagements = { set: researchEngagementIds.map(id => ({ id })) };
+      if (researchEngagementIdentifiers.length > 0) {
+        updateData.research_engagements = { set: researchEngagementIdentifiers };
         console.log("Setting research_engagements relation:", updateData.research_engagements);
       } else {
         console.warn("No research engagement IDs collected, removing from update");
