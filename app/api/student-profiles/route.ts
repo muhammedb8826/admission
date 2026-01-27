@@ -1045,9 +1045,35 @@ export async function PUT(request: NextRequest) {
     const userProfiles = verifyResponse.profiles;
     
     if (userProfiles.length === 0) {
+      // No profile found for this user. Create one instead of returning 404.
+      const createData = Object.fromEntries(
+        Object.entries(body.data).filter(([key]) => key !== "email" && key !== "id" && key !== "documentId")
+      );
+      createData.user = userIdentifier;
+
+      const createResponse = await fetch(`${strapiUrl}/api/student-profiles`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(userJwt && { Authorization: `Bearer ${userJwt}` }),
+          ...(!userJwt && apiToken && { Authorization: `Bearer ${apiToken}` }),
+        },
+        body: JSON.stringify({ data: createData }),
+      });
+
+      const createResult = await createResponse.json().catch(() => ({}));
+      if (createResponse.ok) {
+        return NextResponse.json(createResult, { status: 200 });
+      }
+
+      const errorMessage =
+        (createResult as { error?: { message?: string }; message?: string })?.error?.message ||
+        (createResult as { message?: string })?.message ||
+        "Student profile not found. Please complete your profile first.";
+
       return NextResponse.json(
-        { error: "Student profile not found. Please complete your profile first." },
-        { status: 404 }
+        { error: errorMessage, details: createResult },
+        { status: createResponse.status || 500 }
       );
     }
 
