@@ -35,6 +35,29 @@ const extractRelationDocumentId = (value: unknown): string | null => {
   return null;
 };
 
+const extractRelationIdentifier = (value: unknown): string | number | null => {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed === "") return null;
+    const asNumber = Number(trimmed);
+    if (!Number.isNaN(asNumber) && Number.isFinite(asNumber)) return asNumber;
+    return trimmed; // documentId string
+  }
+  if (typeof value === "number") return value;
+  if (value && typeof value === "object") {
+    const maybe = value as { documentId?: unknown; id?: unknown };
+    if (typeof maybe.documentId === "string" && maybe.documentId.trim() !== "") return maybe.documentId;
+    if (typeof maybe.id === "number") return maybe.id;
+    if (typeof maybe.id === "string") {
+      const trimmed = maybe.id.trim();
+      const asNumber = Number(trimmed);
+      if (!Number.isNaN(asNumber) && Number.isFinite(asNumber)) return asNumber;
+      if (trimmed !== "") return trimmed;
+    }
+  }
+  return null;
+};
+
 
 const resolveComponentRelationIdentifier = async (
   value: unknown,
@@ -292,7 +315,7 @@ export async function POST(request: NextRequest) {
 
     // Addresses are components; normalize relation fields to documentId connect payloads
 
-    // Helper function to clean education relations (country/region/zone/woreda as numeric IDs)
+    // Helper function to clean education relations (country/region/zone/woreda as id OR documentId)
     const cleanEducationRelations = (obj: Record<string, unknown> | null | undefined): Record<string, unknown> | null | undefined => {
       if (!obj || typeof obj !== "object" || Array.isArray(obj)) return obj;
 
@@ -301,9 +324,9 @@ export async function POST(request: NextRequest) {
 
       for (const [key, value] of Object.entries(obj)) {
         if (relationKeys.includes(key)) {
-          const relationId = extractRelationId(value);
-          if (relationId) {
-            cleaned[key] = relationId;
+          const relationIdentifier = extractRelationIdentifier(value);
+          if (relationIdentifier != null) {
+            cleaned[key] = relationIdentifier;
           } else if (value === null) {
             cleaned[key] = null;
           }
@@ -369,11 +392,9 @@ export async function POST(request: NextRequest) {
         }
       }
       
-      // Replace with relation format (prefer documentId if available)
+      // Link relation (Strapi v5: direct assignment for oneToOne is reliable)
       if (primaryEducationDocumentId || primaryEducationId) {
-        profileData.primary_education = {
-          connect: [primaryEducationDocumentId || primaryEducationId],
-        };
+        profileData.primary_education = primaryEducationDocumentId || primaryEducationId;
       } else {
         delete profileData.primary_education;
       }
@@ -423,11 +444,9 @@ export async function POST(request: NextRequest) {
         }
       }
       
-      // Replace with relation format (prefer documentId if available)
+      // Link relation (Strapi v5: direct assignment for oneToOne is reliable)
       if (secondaryEducationDocumentId || secondaryEducationId) {
-        profileData.secondary_education = {
-          connect: [secondaryEducationDocumentId || secondaryEducationId],
-        };
+        profileData.secondary_education = secondaryEducationDocumentId || secondaryEducationId;
       } else {
         delete profileData.secondary_education;
       }
@@ -1101,11 +1120,9 @@ export async function PUT(request: NextRequest) {
         }
       }
       
-      // Replace with relation format (prefer documentId if available)
+      // Link relation (Strapi v5: direct assignment for oneToOne is reliable)
       if (primaryEducationDocumentId || primaryEducationId) {
-        updateData.primary_education = {
-          connect: [primaryEducationDocumentId || primaryEducationId],
-        };
+        updateData.primary_education = primaryEducationDocumentId || primaryEducationId;
       } else {
         delete updateData.primary_education;
       }
@@ -1155,11 +1172,9 @@ export async function PUT(request: NextRequest) {
         }
       }
       
-      // Replace with relation format (prefer documentId if available)
+      // Link relation (Strapi v5: direct assignment for oneToOne is reliable)
       if (secondaryEducationDocumentId || secondaryEducationId) {
-        updateData.secondary_education = {
-          connect: [secondaryEducationDocumentId || secondaryEducationId],
-        };
+        updateData.secondary_education = secondaryEducationDocumentId || secondaryEducationId;
       } else {
         delete updateData.secondary_education;
       }
