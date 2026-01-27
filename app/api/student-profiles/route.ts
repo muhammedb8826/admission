@@ -2,13 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getStrapiURL } from "@/lib/strapi/client";
 import { getSession } from "@/lib/auth/session";
 
-const relationCollectionByKey: Record<string, string> = {
-  country: "countries",
-  region: "regions",
-  zone: "zones",
-  woreda: "woredas",
-};
-
 const extractRelationId = (value: unknown): number | null => {
   if (typeof value === "number") return value;
   if (value && typeof value === "object") {
@@ -25,6 +18,14 @@ const extractRelationId = (value: unknown): number | null => {
   return null;
 };
 
+// Map address relation keys to their Strapi collections
+const relationCollectionByKey: Record<string, string> = {
+  country: "countries",
+  region: "regions",
+  zone: "zones",
+  woreda: "woredas",
+};
+
 const extractRelationDocumentId = (value: unknown): string | null => {
   if (typeof value === "string") return value;
   if (value && typeof value === "object") {
@@ -34,43 +35,52 @@ const extractRelationDocumentId = (value: unknown): string | null => {
   return null;
 };
 
-const resolveRelationConnect = async (
+// Resolve a value (number/id/documentId/object) into the best identifier to send to Strapi
+// Prefer documentId; if only numeric id is available, try to fetch documentId from Strapi
+// and fall back to the numeric id if lookup fails.
+const resolveComponentRelationIdentifier = async (
   value: unknown,
   key: string,
   strapiUrl: string,
   authToken?: string
-): Promise<Record<string, unknown> | null> => {
-  const documentId = extractRelationDocumentId(value);
-  if (documentId) {
-    return { connect: [{ documentId }] };
-  }
+): Promise<string | number | null> => {
+  // Already a documentId string on the value itself
+  const directDocId = extractRelationDocumentId(value);
+  if (directDocId) return directDocId;
 
+  // Try to get numeric id from various shapes
   const numericId = extractRelationId(value);
   if (!numericId) return null;
 
   const collection = relationCollectionByKey[key];
   if (!collection) {
-    return { connect: [numericId] };
+    // Unknown key, just return the numeric id
+    return numericId;
   }
 
-  const fetchUrl = `${strapiUrl}/api/${collection}/${numericId}?fields[0]=documentId`;
-  const response = await fetch(fetchUrl, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(authToken && { Authorization: `Bearer ${authToken}` }),
-    },
-  });
+  // Attempt to resolve documentId from Strapi by numeric id
+  try {
+    const url = `${strapiUrl}/api/${collection}/${numericId}?fields[0]=documentId`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(authToken && { Authorization: `Bearer ${authToken}` }),
+      },
+    });
 
-  if (response.ok) {
-    const result = await response.json().catch(() => ({}));
-    const resolvedDocumentId = result?.data?.documentId;
-    if (typeof resolvedDocumentId === "string") {
-      return { connect: [{ documentId: resolvedDocumentId }] };
+    if (response.ok) {
+      const result = await response.json().catch(() => ({}));
+      const resolvedDocId = result?.data?.documentId;
+      if (typeof resolvedDocId === "string") {
+        return resolvedDocId;
+      }
     }
+  } catch {
+    // Swallow lookup errors and fall back to numeric id
   }
 
-  return { connect: [numericId] };
+  return numericId;
 };
 
 const normalizeAddressComponent = async (
@@ -84,9 +94,16 @@ const normalizeAddressComponent = async (
     if (key === "id") continue;
 
     if (key in relationCollectionByKey) {
-      const connectPayload = await resolveRelationConnect(value, key, strapiUrl, authToken);
-      if (connectPayload) {
-        cleaned[key] = connectPayload;
+      const target = await resolveComponentRelationIdentifier(
+        value,
+        key,
+        strapiUrl,
+        authToken
+      );
+
+      if (target != null) {
+        // For relations inside components, Strapi expects the ID / documentId directly
+        cleaned[key] = target;
       } else if (value === null) {
         cleaned[key] = null;
       }
@@ -796,58 +813,50 @@ export async function PUT(request: NextRequest) {
       updateData.specialNeedDescription = body.data.specialNeedDescription;
     }
 
-    // Helper function to clean component relations
-    // For components, relations should be just the ID number, not wrapped in { set: [...] }
-    // Strapi v4 requires component IDs for updates, and relations within components should be plain numbers
+    // Helper to clean component relations (addresses) to Strapi connect syntax
     const cleanComponentRelations = (obj: Record<string, unknown> | null | undefined): Record<string, unknown> | null | undefined => {
-      if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return obj;
-      
-      const cleaned: Record<string, unknown> = {};
-      const relationKeys = ['country', 'region', 'zone', 'woreda'];
+      if (!obj || typeof obj !== "object" || Array.isArray(obj)) return obj;
 
-      const extractRelationId = (value: unknown): number | null => {
-        if (typeof value === 'number') return value;
-        if (value && typeof value === 'object') {
-          const maybeValue = value as { id?: unknown; set?: Array<{ id?: unknown }> };
-          if (typeof maybeValue.id === 'number') return maybeValue.id;
-          if (Array.isArray(maybeValue.set) && typeof maybeValue.set[0]?.id === 'number') {
-            return maybeValue.set[0].id;
-          }
-        }
-        if (value !== null && value !== undefined) {
-          const numValue = Number(value);
-          if (!Number.isNaN(numValue) && numValue > 0) return numValue;
-        }
-        return null;
-      };
-      
-      // Preserve the component ID if it exists
-      if (obj.id && typeof obj.id === 'number') {
-        cleaned.id = obj.id;
+      const cleaned: Record<string, unknown> = {};
+      const relationKeys = ["country", "region", "zone", "woreda"];
+
+      // Keep component ID so Strapi updates the existing component instance
+      if ("id" in obj && typeof (obj as { id?: unknown }).id === "number") {
+        cleaned.id = (obj as { id: number }).id;
       }
-      
-      // Process all other fields
+
       for (const [key, value] of Object.entries(obj)) {
-        // Skip 'id' as we already handled it
-        if (key === 'id') continue;
-        
-        // For relation fields (country, region, zone, woreda), use connect payloads
+        if (key === "id") continue;
+
         if (relationKeys.includes(key)) {
-          const relationId = extractRelationId(value);
-          if (relationId) {
-            cleaned[key] = { connect: [relationId] };
-          } else if (value === null) {
+          // Prefer documentId when present, otherwise fall back to numeric id or raw value
+          const target: unknown = value;
+          let targetId: string | number | null = null;
+
+          if (target && typeof target === "object") {
+            const v = target as { documentId?: unknown; id?: unknown };
+            if (typeof v.documentId === "string") {
+              targetId = v.documentId;
+            } else if (typeof v.id === "number" || typeof v.id === "string") {
+              targetId = v.id as number | string;
+            }
+          } else if (typeof target === "string" || typeof target === "number") {
+            targetId = target as string | number;
+          }
+
+          if (targetId != null) {
+            // Strapi v5 connect syntax for relations in components
+            cleaned[key] = { connect: [targetId] };
+          } else {
             cleaned[key] = null;
           }
+        } else if (value && typeof value === "object" && !Array.isArray(value)) {
+          cleaned[key] = cleanComponentRelations(value as Record<string, unknown>);
         } else {
-          // For other fields, keep as is (recursively clean if it's an object)
-          if (value && typeof value === 'object' && !Array.isArray(value)) {
-            cleaned[key] = cleanComponentRelations(value as Record<string, unknown>);
-          } else {
-            cleaned[key] = value;
-          }
+          cleaned[key] = value;
         }
       }
+
       return cleaned;
     };
 

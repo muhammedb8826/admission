@@ -20,21 +20,25 @@ import { useRouter } from "next/navigation";
 
 type Country = {
   id: number;
+  documentId?: string;
   name: string;
 };
 
 type Region = {
   id: number;
+  documentId?: string;
   name: string;
 };
 
 type Zone = {
   id: number;
+  documentId?: string;
   name: string;
 };
 
 type Woreda = {
   id: number;
+  documentId?: string;
   name: string;
 };
 
@@ -52,10 +56,10 @@ type ProfileFormData = {
   // Residential Address
   residentialKebele: string;
   residentialHouseNumber: string;
-  residentialCountry: number | null;
-  residentialRegion: number | null;
-  residentialZone: number | null;
-  residentialWoreda: number | null;
+  residentialCountry: string | number | null;
+  residentialRegion: string | number | null;
+  residentialZone: string | number | null;
+  residentialWoreda: string | number | null;
   
   // Birth Address
   birthKebele: string;
@@ -66,39 +70,39 @@ type ProfileFormData = {
   birthMaritalStatus: string;
   birthGender: string;
   birthNationalId: number | null;
-  birthCountry: number | null;
-  birthRegion: number | null;
-  birthZone: number | null;
-  birthWoreda: number | null;
+  birthCountry: string | number | null;
+  birthRegion: string | number | null;
+  birthZone: string | number | null;
+  birthWoreda: string | number | null;
   
   // Person to be Contacted
   ptbcFullName: string;
   ptbcKebele: string;
   ptbcPhoneNumber: string;
   ptbcAltPhoneNumber: string;
-  ptbcCountry: number | null;
-  ptbcRegion: number | null;
-  ptbcZone: number | null;
-  ptbcWoreda: number | null;
+  ptbcCountry: string | number | null;
+  ptbcRegion: string | number | null;
+  ptbcZone: string | number | null;
+  ptbcWoreda: string | number | null;
   
   // Primary Education
   primarySchoolName: string;
   primaryYearStarted: string;
   primaryYearCompleted: string;
-  primaryCountry: number | null;
-  primaryRegion: number | null;
-  primaryZone: number | null;
-  primaryWoreda: number | null;
+  primaryCountry: string | number | null;
+  primaryRegion: string | number | null;
+  primaryZone: string | number | null;
+  primaryWoreda: string | number | null;
   
   // Secondary Education
   secondarySchoolName: string;
   secondaryStream: string;
   secondaryYearStarted: string;
   secondaryYearCompleted: string;
-  secondaryCountry: number | null;
-  secondaryRegion: number | null;
-  secondaryZone: number | null;
-  secondaryWoreda: number | null;
+  secondaryCountry: string | number | null;
+  secondaryRegion: string | number | null;
+  secondaryZone: string | number | null;
+  secondaryWoreda: string | number | null;
   
   // Tertiary Education (array - we'll handle one for now, can be extended)
   tertiaryInstitution: string;
@@ -106,10 +110,10 @@ type ProfileFormData = {
   tertiaryGpaScore: string;
   tertiaryYearStarted: string;
   tertiaryYearCompleted: string;
-  tertiaryCountry: number | null;
-  tertiaryRegion: number | null;
-  tertiaryZone: number | null;
-  tertiaryWoreda: number | null;
+  tertiaryCountry: string | number | null;
+  tertiaryRegion: string | number | null;
+  tertiaryZone: string | number | null;
+  tertiaryWoreda: string | number | null;
   
   // Professional Experience (array - we'll handle one for now)
   professionalOrganizationName: string;
@@ -311,10 +315,10 @@ export function StudentProfileCompletionForm() {
               // Residential Address
               residentialKebele: profile.residentialAddress?.kebele || "",
               residentialHouseNumber: profile.residentialAddress?.houseNumber || "",
-              residentialCountry: profile.residentialAddress?.country?.id || null,
-              residentialRegion: profile.residentialAddress?.region?.id || null,
-              residentialZone: profile.residentialAddress?.zone?.id || null,
-              residentialWoreda: profile.residentialAddress?.woreda?.id || null,
+              residentialCountry: profile.residentialAddress?.country?.documentId || profile.residentialAddress?.country?.id || null,
+              residentialRegion: profile.residentialAddress?.region?.documentId || profile.residentialAddress?.region?.id || null,
+              residentialZone: profile.residentialAddress?.zone?.documentId || profile.residentialAddress?.zone?.id || null,
+              residentialWoreda: profile.residentialAddress?.woreda?.documentId || profile.residentialAddress?.woreda?.id || null,
               
               // Birth Address
               birthKebele: profile.birthAddress?.kebele || "",
@@ -325,39 +329,39 @@ export function StudentProfileCompletionForm() {
               birthMaritalStatus: profile.birthAddress?.maritalStatus || "",
               birthGender: profile.birthAddress?.gender || "",
               birthNationalId: profile.birthAddress?.natioanalId?.id || (typeof profile.birthAddress?.natioanalId === 'number' ? profile.birthAddress.natioanalId : null),
-              birthCountry: profile.birthAddress?.country?.id || null,
-              birthRegion: profile.birthAddress?.region?.id || null,
-              birthZone: profile.birthAddress?.zone?.id || null,
-              birthWoreda: profile.birthAddress?.woreda?.id || null,
+              birthCountry: profile.birthAddress?.country?.documentId || profile.birthAddress?.country?.id || null,
+              birthRegion: profile.birthAddress?.region?.documentId || profile.birthAddress?.region?.id || null,
+              birthZone: profile.birthAddress?.zone?.documentId || profile.birthAddress?.zone?.id || null,
+              birthWoreda: profile.birthAddress?.woreda?.documentId || profile.birthAddress?.woreda?.id || null,
               
               // Person to be Contacted
               ptbcFullName: profile.personToBeContacted?.fullName || "",
               ptbcKebele: profile.personToBeContacted?.kebele || "",
               ptbcPhoneNumber: profile.personToBeContacted?.phoneNumber || "",
               ptbcAltPhoneNumber: profile.personToBeContacted?.altPhoneNumber || "",
-              ptbcCountry: profile.personToBeContacted?.country?.id || null,
-              ptbcRegion: profile.personToBeContacted?.region?.id || null,
-              ptbcZone: profile.personToBeContacted?.zone?.id || null,
-              ptbcWoreda: profile.personToBeContacted?.woreda?.id || null,
+              ptbcCountry: profile.personToBeContacted?.country?.documentId || profile.personToBeContacted?.country?.id || null,
+              ptbcRegion: profile.personToBeContacted?.region?.documentId || profile.personToBeContacted?.region?.id || null,
+              ptbcZone: profile.personToBeContacted?.zone?.documentId || profile.personToBeContacted?.zone?.id || null,
+              ptbcWoreda: profile.personToBeContacted?.woreda?.documentId || profile.personToBeContacted?.woreda?.id || null,
               
               // Primary Education
               primarySchoolName: profile.primary_education?.schoolName || "",
               primaryYearStarted: profile.primary_education?.yearStarted?.toString() || "",
               primaryYearCompleted: profile.primary_education?.yearCompleted?.toString() || "",
-              primaryCountry: profile.primary_education?.country?.id || null,
-              primaryRegion: profile.primary_education?.region?.id || null,
-              primaryZone: profile.primary_education?.zone?.id || null,
-              primaryWoreda: profile.primary_education?.woreda?.id || null,
+              primaryCountry: profile.primary_education?.country?.documentId || profile.primary_education?.country?.id || null,
+              primaryRegion: profile.primary_education?.region?.documentId || profile.primary_education?.region?.id || null,
+              primaryZone: profile.primary_education?.zone?.documentId || profile.primary_education?.zone?.id || null,
+              primaryWoreda: profile.primary_education?.woreda?.documentId || profile.primary_education?.woreda?.id || null,
               
               // Secondary Education
               secondarySchoolName: profile.secondary_education?.schoolName || "",
               secondaryStream: profile.secondary_education?.stream || "",
               secondaryYearStarted: profile.secondary_education?.yearStarted?.toString() || "",
               secondaryYearCompleted: profile.secondary_education?.yearCompleted?.toString() || "",
-              secondaryCountry: profile.secondary_education?.country?.id || null,
-              secondaryRegion: profile.secondary_education?.region?.id || null,
-              secondaryZone: profile.secondary_education?.zone?.id || null,
-              secondaryWoreda: profile.secondary_education?.woreda?.id || null,
+              secondaryCountry: profile.secondary_education?.country?.documentId || profile.secondary_education?.country?.id || null,
+              secondaryRegion: profile.secondary_education?.region?.documentId || profile.secondary_education?.region?.id || null,
+              secondaryZone: profile.secondary_education?.zone?.documentId || profile.secondary_education?.zone?.id || null,
+              secondaryWoreda: profile.secondary_education?.woreda?.documentId || profile.secondary_education?.woreda?.id || null,
               
               // Tertiary Education (take first one if array exists)
               tertiaryInstitution: profile.tertiary_educations?.[0]?.institution || "",
@@ -365,10 +369,10 @@ export function StudentProfileCompletionForm() {
               tertiaryGpaScore: profile.tertiary_educations?.[0]?.gpaScore?.toString() || "",
               tertiaryYearStarted: profile.tertiary_educations?.[0]?.yearStarted?.toString() || "",
               tertiaryYearCompleted: profile.tertiary_educations?.[0]?.yearCompleted?.toString() || "",
-              tertiaryCountry: profile.tertiary_educations?.[0]?.country?.id || null,
-              tertiaryRegion: profile.tertiary_educations?.[0]?.region?.id || null,
-              tertiaryZone: profile.tertiary_educations?.[0]?.zone?.id || null,
-              tertiaryWoreda: profile.tertiary_educations?.[0]?.woreda?.id || null,
+              tertiaryCountry: profile.tertiary_educations?.[0]?.country?.documentId || profile.tertiary_educations?.[0]?.country?.id || null,
+              tertiaryRegion: profile.tertiary_educations?.[0]?.region?.documentId || profile.tertiary_educations?.[0]?.region?.id || null,
+              tertiaryZone: profile.tertiary_educations?.[0]?.zone?.documentId || profile.tertiary_educations?.[0]?.zone?.id || null,
+              tertiaryWoreda: profile.tertiary_educations?.[0]?.woreda?.documentId || profile.tertiary_educations?.[0]?.woreda?.id || null,
               
               // Professional Experience (take first one if array exists)
               professionalOrganizationName: profile.professional_experiences?.[0]?.organizationName || "",
@@ -733,7 +737,21 @@ export function StudentProfileCompletionForm() {
     }
   };
 
-  const handleCountryChange = async (countryId: number | null, type: 'birth' | 'residential' | 'ptbc' | 'primary' | 'secondary' | 'tertiary') => {
+  const resolveSelection = <T extends { id: number; documentId?: string }>(
+    list: T[],
+    value: string | null
+  ): { id: number | null; documentId: string | null } => {
+    if (!value) return { id: null, documentId: null };
+    const matched = list.find(
+      (item) => item.documentId === value || item.id.toString() === value
+    );
+    return {
+      id: matched?.id ?? (Number.isNaN(Number(value)) ? null : Number(value)),
+      documentId: matched?.documentId ?? null,
+    };
+  };
+
+  const handleCountryChange = async (value: string | null, type: 'birth' | 'residential' | 'ptbc' | 'primary' | 'secondary' | 'tertiary') => {
     const fieldMap: Record<string, string> = {
       'birth': 'birthCountry',
       'residential': 'residentialCountry',
@@ -742,9 +760,10 @@ export function StudentProfileCompletionForm() {
       'secondary': 'secondaryCountry',
       'tertiary': 'tertiaryCountry',
     };
-    
-    handleInputChange(fieldMap[type] as keyof ProfileFormData, countryId);
-    
+
+    const { id: countryId, documentId } = resolveSelection(countries, value);
+    handleInputChange(fieldMap[type] as keyof ProfileFormData, documentId ?? countryId);
+
     if (countryId) {
       await fetchRegions(countryId, type);
     }
@@ -764,7 +783,7 @@ export function StudentProfileCompletionForm() {
     });
   };
 
-  const handleRegionChange = async (regionId: number | null, type: 'birth' | 'residential' | 'ptbc' | 'primary' | 'secondary' | 'tertiary') => {
+  const handleRegionChange = async (value: string | null, type: 'birth' | 'residential' | 'ptbc' | 'primary' | 'secondary' | 'tertiary') => {
     const fieldMap: Record<string, string> = {
       'birth': 'birthRegion',
       'residential': 'residentialRegion',
@@ -773,9 +792,19 @@ export function StudentProfileCompletionForm() {
       'secondary': 'secondaryRegion',
       'tertiary': 'tertiaryRegion',
     };
-    
-    handleInputChange(fieldMap[type] as keyof ProfileFormData, regionId);
-    
+
+    const regionLists: Record<string, Region[]> = {
+      birth: birthRegions,
+      residential: residentialRegions,
+      ptbc: ptbcRegions,
+      primary: primaryRegions,
+      secondary: secondaryRegions,
+      tertiary: tertiaryRegions,
+    };
+
+    const { id: regionId, documentId } = resolveSelection(regionLists[type], value);
+    handleInputChange(fieldMap[type] as keyof ProfileFormData, documentId ?? regionId);
+
     if (regionId) {
       await fetchZones(regionId, type);
     }
@@ -795,7 +824,7 @@ export function StudentProfileCompletionForm() {
     });
   };
 
-  const handleZoneChange = async (zoneId: number | null, type: 'birth' | 'residential' | 'ptbc' | 'primary' | 'secondary' | 'tertiary') => {
+  const handleZoneChange = async (value: string | null, type: 'birth' | 'residential' | 'ptbc' | 'primary' | 'secondary' | 'tertiary') => {
     const fieldMap: Record<string, string> = {
       'birth': 'birthZone',
       'residential': 'residentialZone',
@@ -804,9 +833,19 @@ export function StudentProfileCompletionForm() {
       'secondary': 'secondaryZone',
       'tertiary': 'tertiaryZone',
     };
-    
-    handleInputChange(fieldMap[type] as keyof ProfileFormData, zoneId);
-    
+
+    const zoneLists: Record<string, Zone[]> = {
+      birth: birthZones,
+      residential: residentialZones,
+      ptbc: ptbcZones,
+      primary: primaryZones,
+      secondary: secondaryZones,
+      tertiary: tertiaryZones,
+    };
+
+    const { id: zoneId, documentId } = resolveSelection(zoneLists[type], value);
+    handleInputChange(fieldMap[type] as keyof ProfileFormData, documentId ?? zoneId);
+
     if (zoneId) {
       await fetchWoredas(zoneId, type);
     }
@@ -882,10 +921,10 @@ export function StudentProfileCompletionForm() {
         maritalStatus?: string;
         gender?: string;
         natioanalId?: number;
-        country?: number;
-        region?: number;
-        zone?: number;
-        woreda?: number;
+        country?: string | number;
+        region?: string | number;
+        zone?: string | number;
+        woreda?: string | number;
         fullName?: string;
         altPhoneNumber?: string;
       };
@@ -932,10 +971,10 @@ export function StudentProfileCompletionForm() {
         gpaScore?: number;
         yearStarted?: number;
         yearCompleted?: number;
-        country?: number;
-        region?: number;
-        zone?: number;
-        woreda?: number;
+        country?: string | number;
+        region?: string | number;
+        zone?: string | number;
+        woreda?: string | number;
       };
 
       const primaryEducation: EducationData = {};
@@ -1444,10 +1483,10 @@ export function StudentProfileCompletionForm() {
         maritalStatus?: string;
         gender?: string;
         natioanalId?: number;
-        country?: number;
-        region?: number;
-        zone?: number;
-        woreda?: number;
+        country?: string | number;
+        region?: string | number;
+        zone?: string | number;
+        woreda?: string | number;
         fullName?: string;
         altPhoneNumber?: string;
       };
@@ -1494,10 +1533,10 @@ export function StudentProfileCompletionForm() {
         gpaScore?: number;
         yearStarted?: number;
         yearCompleted?: number;
-        country?: number;
-        region?: number;
-        zone?: number;
-        woreda?: number;
+        country?: string | number;
+        region?: string | number;
+        zone?: string | number;
+        woreda?: string | number;
       };
 
       const primaryEducation: EducationData = {};
@@ -1944,14 +1983,14 @@ export function StudentProfileCompletionForm() {
               <Label htmlFor="residentialCountry">Country</Label>
               <Select
                 value={formData.residentialCountry?.toString() || ""}
-                onValueChange={(value) => handleCountryChange(value ? Number(value) : null, 'residential')}
+                onValueChange={(value) => handleCountryChange(value || null, 'residential')}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select country" />
                 </SelectTrigger>
                 <SelectContent>
                   {countries.map((country) => (
-                    <SelectItem key={country.id} value={country.id.toString()}>
+                    <SelectItem key={country.id} value={country.documentId || country.id.toString()}>
                       {country.name}
                     </SelectItem>
                   ))}
@@ -1962,7 +2001,7 @@ export function StudentProfileCompletionForm() {
               <Label htmlFor="residentialRegion">Region</Label>
               <Select
                 value={formData.residentialRegion?.toString() || ""}
-                onValueChange={(value) => handleRegionChange(value ? Number(value) : null, 'residential')}
+                onValueChange={(value) => handleRegionChange(value || null, 'residential')}
                 disabled={!formData.residentialCountry}
               >
                 <SelectTrigger>
@@ -1970,7 +2009,7 @@ export function StudentProfileCompletionForm() {
                 </SelectTrigger>
                 <SelectContent>
                   {residentialRegions.map((region) => (
-                    <SelectItem key={region.id} value={region.id.toString()}>
+                    <SelectItem key={region.id} value={region.documentId || region.id.toString()}>
                       {region.name}
                     </SelectItem>
                   ))}
@@ -1981,7 +2020,7 @@ export function StudentProfileCompletionForm() {
               <Label htmlFor="residentialZone">Zone</Label>
               <Select
                 value={formData.residentialZone?.toString() || ""}
-                onValueChange={(value) => handleZoneChange(value ? Number(value) : null, 'residential')}
+                onValueChange={(value) => handleZoneChange(value || null, 'residential')}
                 disabled={!formData.residentialRegion}
               >
                 <SelectTrigger>
@@ -1989,7 +2028,7 @@ export function StudentProfileCompletionForm() {
                 </SelectTrigger>
                 <SelectContent>
                   {residentialZones.map((zone) => (
-                    <SelectItem key={zone.id} value={zone.id.toString()}>
+                    <SelectItem key={zone.id} value={zone.documentId || zone.id.toString()}>
                       {zone.name}
                     </SelectItem>
                   ))}
@@ -2000,7 +2039,10 @@ export function StudentProfileCompletionForm() {
               <Label htmlFor="residentialWoreda">Woreda</Label>
               <Select
                 value={formData.residentialWoreda?.toString() || ""}
-                onValueChange={(value) => handleInputChange("residentialWoreda", value ? Number(value) : null)}
+                onValueChange={(value) => {
+                  const resolved = resolveSelection(residentialWoredas, value || null);
+                  handleInputChange("residentialWoreda", resolved.documentId ?? resolved.id);
+                }}
                 disabled={!formData.residentialZone}
               >
                 <SelectTrigger>
@@ -2008,7 +2050,7 @@ export function StudentProfileCompletionForm() {
                 </SelectTrigger>
                 <SelectContent>
                   {residentialWoredas.map((woreda) => (
-                    <SelectItem key={woreda.id} value={woreda.id.toString()}>
+                    <SelectItem key={woreda.id} value={woreda.documentId || woreda.id.toString()}>
                       {woreda.name}
                     </SelectItem>
                   ))}
@@ -2047,14 +2089,14 @@ export function StudentProfileCompletionForm() {
               <Label htmlFor="birthCountry">Country</Label>
               <Select
                 value={formData.birthCountry?.toString() || ""}
-                onValueChange={(value) => handleCountryChange(value ? Number(value) : null, 'birth')}
+                onValueChange={(value) => handleCountryChange(value || null, 'birth')}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select country" />
                 </SelectTrigger>
                 <SelectContent>
                   {countries.map((country) => (
-                    <SelectItem key={country.id} value={country.id.toString()}>
+                    <SelectItem key={country.id} value={country.documentId || country.id.toString()}>
                       {country.name}
                     </SelectItem>
                   ))}
@@ -2065,7 +2107,7 @@ export function StudentProfileCompletionForm() {
               <Label htmlFor="birthRegion">Region</Label>
               <Select
                 value={formData.birthRegion?.toString() || ""}
-                onValueChange={(value) => handleRegionChange(value ? Number(value) : null, 'birth')}
+                onValueChange={(value) => handleRegionChange(value || null, 'birth')}
                 disabled={!formData.birthCountry}
               >
                 <SelectTrigger>
@@ -2073,7 +2115,7 @@ export function StudentProfileCompletionForm() {
                 </SelectTrigger>
                 <SelectContent>
                   {birthRegions.map((region) => (
-                    <SelectItem key={region.id} value={region.id.toString()}>
+                    <SelectItem key={region.id} value={region.documentId || region.id.toString()}>
                       {region.name}
                     </SelectItem>
                   ))}
@@ -2084,7 +2126,7 @@ export function StudentProfileCompletionForm() {
               <Label htmlFor="birthZone">Zone</Label>
               <Select
                 value={formData.birthZone?.toString() || ""}
-                onValueChange={(value) => handleZoneChange(value ? Number(value) : null, 'birth')}
+                onValueChange={(value) => handleZoneChange(value || null, 'birth')}
                 disabled={!formData.birthRegion}
               >
                 <SelectTrigger>
@@ -2092,7 +2134,7 @@ export function StudentProfileCompletionForm() {
                 </SelectTrigger>
                 <SelectContent>
                   {birthZones.map((zone) => (
-                    <SelectItem key={zone.id} value={zone.id.toString()}>
+                    <SelectItem key={zone.id} value={zone.documentId || zone.id.toString()}>
                       {zone.name}
                     </SelectItem>
                   ))}
@@ -2103,7 +2145,10 @@ export function StudentProfileCompletionForm() {
               <Label htmlFor="birthWoreda">Woreda</Label>
               <Select
                 value={formData.birthWoreda?.toString() || ""}
-                onValueChange={(value) => handleInputChange("birthWoreda", value ? Number(value) : null)}
+                onValueChange={(value) => {
+                  const resolved = resolveSelection(birthWoredas, value || null);
+                  handleInputChange("birthWoreda", resolved.documentId ?? resolved.id);
+                }}
                 disabled={!formData.birthZone}
               >
                 <SelectTrigger>
@@ -2111,7 +2156,7 @@ export function StudentProfileCompletionForm() {
                 </SelectTrigger>
                 <SelectContent>
                   {birthWoredas.map((woreda) => (
-                    <SelectItem key={woreda.id} value={woreda.id.toString()}>
+                    <SelectItem key={woreda.id} value={woreda.documentId || woreda.id.toString()}>
                       {woreda.name}
                     </SelectItem>
                   ))}
@@ -2270,14 +2315,14 @@ export function StudentProfileCompletionForm() {
               <Label htmlFor="ptbcCountry">Country</Label>
               <Select
                 value={formData.ptbcCountry?.toString() || ""}
-                onValueChange={(value) => handleCountryChange(value ? Number(value) : null, 'ptbc')}
+                onValueChange={(value) => handleCountryChange(value || null, 'ptbc')}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select country" />
                 </SelectTrigger>
                 <SelectContent>
                   {countries.map((country) => (
-                    <SelectItem key={country.id} value={country.id.toString()}>
+                    <SelectItem key={country.id} value={country.documentId || country.id.toString()}>
                       {country.name}
                     </SelectItem>
                   ))}
@@ -2288,7 +2333,7 @@ export function StudentProfileCompletionForm() {
               <Label htmlFor="ptbcRegion">Region</Label>
               <Select
                 value={formData.ptbcRegion?.toString() || ""}
-                onValueChange={(value) => handleRegionChange(value ? Number(value) : null, 'ptbc')}
+                onValueChange={(value) => handleRegionChange(value || null, 'ptbc')}
                 disabled={!formData.ptbcCountry}
               >
                 <SelectTrigger>
@@ -2296,7 +2341,7 @@ export function StudentProfileCompletionForm() {
                 </SelectTrigger>
                 <SelectContent>
                   {ptbcRegions.map((region) => (
-                    <SelectItem key={region.id} value={region.id.toString()}>
+                    <SelectItem key={region.id} value={region.documentId || region.id.toString()}>
                       {region.name}
                     </SelectItem>
                   ))}
@@ -2307,7 +2352,7 @@ export function StudentProfileCompletionForm() {
               <Label htmlFor="ptbcZone">Zone</Label>
               <Select
                 value={formData.ptbcZone?.toString() || ""}
-                onValueChange={(value) => handleZoneChange(value ? Number(value) : null, 'ptbc')}
+                onValueChange={(value) => handleZoneChange(value || null, 'ptbc')}
                 disabled={!formData.ptbcRegion}
               >
                 <SelectTrigger>
@@ -2315,7 +2360,7 @@ export function StudentProfileCompletionForm() {
                 </SelectTrigger>
                 <SelectContent>
                   {ptbcZones.map((zone) => (
-                    <SelectItem key={zone.id} value={zone.id.toString()}>
+                    <SelectItem key={zone.id} value={zone.documentId || zone.id.toString()}>
                       {zone.name}
                     </SelectItem>
                   ))}
@@ -2326,7 +2371,10 @@ export function StudentProfileCompletionForm() {
               <Label htmlFor="ptbcWoreda">Woreda</Label>
               <Select
                 value={formData.ptbcWoreda?.toString() || ""}
-                onValueChange={(value) => handleInputChange("ptbcWoreda", value ? Number(value) : null)}
+                onValueChange={(value) => {
+                  const resolved = resolveSelection(ptbcWoredas, value || null);
+                  handleInputChange("ptbcWoreda", resolved.documentId ?? resolved.id);
+                }}
                 disabled={!formData.ptbcZone}
               >
                 <SelectTrigger>
@@ -2334,7 +2382,7 @@ export function StudentProfileCompletionForm() {
                 </SelectTrigger>
                 <SelectContent>
                   {ptbcWoredas.map((woreda) => (
-                    <SelectItem key={woreda.id} value={woreda.id.toString()}>
+                    <SelectItem key={woreda.id} value={woreda.documentId || woreda.id.toString()}>
                       {woreda.name}
                     </SelectItem>
                   ))}
@@ -2431,14 +2479,14 @@ export function StudentProfileCompletionForm() {
                   <Label htmlFor="primaryCountry">Country</Label>
                   <Select
                     value={formData.primaryCountry?.toString() || ""}
-                    onValueChange={(value) => handleCountryChange(value ? Number(value) : null, 'primary')}
+                    onValueChange={(value) => handleCountryChange(value || null, 'primary')}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select country" />
                     </SelectTrigger>
                     <SelectContent>
                       {countries.map((country) => (
-                        <SelectItem key={country.id} value={country.id.toString()}>
+                        <SelectItem key={country.id} value={country.documentId || country.id.toString()}>
                           {country.name}
                         </SelectItem>
                       ))}
@@ -2449,7 +2497,7 @@ export function StudentProfileCompletionForm() {
                   <Label htmlFor="primaryRegion">Region</Label>
                   <Select
                     value={formData.primaryRegion?.toString() || ""}
-                    onValueChange={(value) => handleRegionChange(value ? Number(value) : null, 'primary')}
+                    onValueChange={(value) => handleRegionChange(value || null, 'primary')}
                     disabled={!formData.primaryCountry}
                   >
                     <SelectTrigger>
@@ -2457,7 +2505,7 @@ export function StudentProfileCompletionForm() {
                     </SelectTrigger>
                     <SelectContent>
                       {primaryRegions.map((region) => (
-                        <SelectItem key={region.id} value={region.id.toString()}>
+                        <SelectItem key={region.id} value={region.documentId || region.id.toString()}>
                           {region.name}
                         </SelectItem>
                       ))}
@@ -2468,7 +2516,7 @@ export function StudentProfileCompletionForm() {
                   <Label htmlFor="primaryZone">Zone</Label>
                   <Select
                     value={formData.primaryZone?.toString() || ""}
-                    onValueChange={(value) => handleZoneChange(value ? Number(value) : null, 'primary')}
+                    onValueChange={(value) => handleZoneChange(value || null, 'primary')}
                     disabled={!formData.primaryRegion}
                   >
                     <SelectTrigger>
@@ -2476,7 +2524,7 @@ export function StudentProfileCompletionForm() {
                     </SelectTrigger>
                     <SelectContent>
                       {primaryZones.map((zone) => (
-                        <SelectItem key={zone.id} value={zone.id.toString()}>
+                        <SelectItem key={zone.id} value={zone.documentId || zone.id.toString()}>
                           {zone.name}
                         </SelectItem>
                       ))}
@@ -2487,7 +2535,10 @@ export function StudentProfileCompletionForm() {
                   <Label htmlFor="primaryWoreda">Woreda</Label>
                   <Select
                     value={formData.primaryWoreda?.toString() || ""}
-                    onValueChange={(value) => handleInputChange("primaryWoreda", value ? Number(value) : null)}
+                    onValueChange={(value) => {
+                      const resolved = resolveSelection(primaryWoredas, value || null);
+                      handleInputChange("primaryWoreda", resolved.documentId ?? resolved.id);
+                    }}
                     disabled={!formData.primaryZone}
                   >
                     <SelectTrigger>
@@ -2495,7 +2546,7 @@ export function StudentProfileCompletionForm() {
                     </SelectTrigger>
                     <SelectContent>
                       {primaryWoredas.map((woreda) => (
-                        <SelectItem key={woreda.id} value={woreda.id.toString()}>
+                        <SelectItem key={woreda.id} value={woreda.documentId || woreda.id.toString()}>
                           {woreda.name}
                         </SelectItem>
                       ))}
@@ -2561,14 +2612,14 @@ export function StudentProfileCompletionForm() {
                   <Label htmlFor="secondaryCountry">Country</Label>
                   <Select
                     value={formData.secondaryCountry?.toString() || ""}
-                    onValueChange={(value) => handleCountryChange(value ? Number(value) : null, 'secondary')}
+                    onValueChange={(value) => handleCountryChange(value || null, 'secondary')}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select country" />
                     </SelectTrigger>
                     <SelectContent>
                       {countries.map((country) => (
-                        <SelectItem key={country.id} value={country.id.toString()}>
+                        <SelectItem key={country.id} value={country.documentId || country.id.toString()}>
                           {country.name}
                         </SelectItem>
                       ))}
@@ -2579,7 +2630,7 @@ export function StudentProfileCompletionForm() {
                   <Label htmlFor="secondaryRegion">Region</Label>
                   <Select
                     value={formData.secondaryRegion?.toString() || ""}
-                    onValueChange={(value) => handleRegionChange(value ? Number(value) : null, 'secondary')}
+                    onValueChange={(value) => handleRegionChange(value || null, 'secondary')}
                     disabled={!formData.secondaryCountry}
                   >
                     <SelectTrigger>
@@ -2587,7 +2638,7 @@ export function StudentProfileCompletionForm() {
                     </SelectTrigger>
                     <SelectContent>
                       {secondaryRegions.map((region) => (
-                        <SelectItem key={region.id} value={region.id.toString()}>
+                        <SelectItem key={region.id} value={region.documentId || region.id.toString()}>
                           {region.name}
                         </SelectItem>
                       ))}
@@ -2598,7 +2649,7 @@ export function StudentProfileCompletionForm() {
                   <Label htmlFor="secondaryZone">Zone</Label>
                   <Select
                     value={formData.secondaryZone?.toString() || ""}
-                    onValueChange={(value) => handleZoneChange(value ? Number(value) : null, 'secondary')}
+                    onValueChange={(value) => handleZoneChange(value || null, 'secondary')}
                     disabled={!formData.secondaryRegion}
                   >
                     <SelectTrigger>
@@ -2606,7 +2657,7 @@ export function StudentProfileCompletionForm() {
                     </SelectTrigger>
                     <SelectContent>
                       {secondaryZones.map((zone) => (
-                        <SelectItem key={zone.id} value={zone.id.toString()}>
+                        <SelectItem key={zone.id} value={zone.documentId || zone.id.toString()}>
                           {zone.name}
                         </SelectItem>
                       ))}
@@ -2617,7 +2668,10 @@ export function StudentProfileCompletionForm() {
                   <Label htmlFor="secondaryWoreda">Woreda</Label>
                   <Select
                     value={formData.secondaryWoreda?.toString() || ""}
-                    onValueChange={(value) => handleInputChange("secondaryWoreda", value ? Number(value) : null)}
+                    onValueChange={(value) => {
+                      const resolved = resolveSelection(secondaryWoredas, value || null);
+                      handleInputChange("secondaryWoreda", resolved.documentId ?? resolved.id);
+                    }}
                     disabled={!formData.secondaryZone}
                   >
                     <SelectTrigger>
@@ -2625,7 +2679,7 @@ export function StudentProfileCompletionForm() {
                     </SelectTrigger>
                     <SelectContent>
                       {secondaryWoredas.map((woreda) => (
-                        <SelectItem key={woreda.id} value={woreda.id.toString()}>
+                        <SelectItem key={woreda.id} value={woreda.documentId || woreda.id.toString()}>
                           {woreda.name}
                         </SelectItem>
                       ))}
@@ -2695,14 +2749,14 @@ export function StudentProfileCompletionForm() {
                   <Label htmlFor="tertiaryCountry">Country</Label>
                   <Select
                     value={formData.tertiaryCountry?.toString() || ""}
-                    onValueChange={(value) => handleCountryChange(value ? Number(value) : null, 'tertiary')}
+                    onValueChange={(value) => handleCountryChange(value || null, 'tertiary')}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select country" />
                     </SelectTrigger>
                     <SelectContent>
                       {countries.map((country) => (
-                        <SelectItem key={country.id} value={country.id.toString()}>
+                        <SelectItem key={country.id} value={country.documentId || country.id.toString()}>
                           {country.name}
                         </SelectItem>
                       ))}
@@ -2713,7 +2767,7 @@ export function StudentProfileCompletionForm() {
                   <Label htmlFor="tertiaryRegion">Region</Label>
                   <Select
                     value={formData.tertiaryRegion?.toString() || ""}
-                    onValueChange={(value) => handleRegionChange(value ? Number(value) : null, 'tertiary')}
+                    onValueChange={(value) => handleRegionChange(value || null, 'tertiary')}
                     disabled={!formData.tertiaryCountry}
                   >
                     <SelectTrigger>
@@ -2721,7 +2775,7 @@ export function StudentProfileCompletionForm() {
                     </SelectTrigger>
                     <SelectContent>
                       {tertiaryRegions.map((region) => (
-                        <SelectItem key={region.id} value={region.id.toString()}>
+                        <SelectItem key={region.id} value={region.documentId || region.id.toString()}>
                           {region.name}
                         </SelectItem>
                       ))}
@@ -2732,7 +2786,7 @@ export function StudentProfileCompletionForm() {
                   <Label htmlFor="tertiaryZone">Zone</Label>
                   <Select
                     value={formData.tertiaryZone?.toString() || ""}
-                    onValueChange={(value) => handleZoneChange(value ? Number(value) : null, 'tertiary')}
+                    onValueChange={(value) => handleZoneChange(value || null, 'tertiary')}
                     disabled={!formData.tertiaryRegion}
                   >
                     <SelectTrigger>
@@ -2740,7 +2794,7 @@ export function StudentProfileCompletionForm() {
                     </SelectTrigger>
                     <SelectContent>
                       {tertiaryZones.map((zone) => (
-                        <SelectItem key={zone.id} value={zone.id.toString()}>
+                        <SelectItem key={zone.id} value={zone.documentId || zone.id.toString()}>
                           {zone.name}
                         </SelectItem>
                       ))}
@@ -2751,7 +2805,10 @@ export function StudentProfileCompletionForm() {
                   <Label htmlFor="tertiaryWoreda">Woreda</Label>
                   <Select
                     value={formData.tertiaryWoreda?.toString() || ""}
-                    onValueChange={(value) => handleInputChange("tertiaryWoreda", value ? Number(value) : null)}
+                    onValueChange={(value) => {
+                      const resolved = resolveSelection(tertiaryWoredas, value || null);
+                      handleInputChange("tertiaryWoreda", resolved.documentId ?? resolved.id);
+                    }}
                     disabled={!formData.tertiaryZone}
                   >
                     <SelectTrigger>
@@ -2759,7 +2816,7 @@ export function StudentProfileCompletionForm() {
                     </SelectTrigger>
                     <SelectContent>
                       {tertiaryWoredas.map((woreda) => (
-                        <SelectItem key={woreda.id} value={woreda.id.toString()}>
+                        <SelectItem key={woreda.id} value={woreda.documentId || woreda.id.toString()}>
                           {woreda.name}
                         </SelectItem>
                       ))}
