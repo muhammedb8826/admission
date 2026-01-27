@@ -35,9 +35,7 @@ const extractRelationDocumentId = (value: unknown): string | null => {
   return null;
 };
 
-// Resolve a value (number/id/documentId/object) into the best identifier to send to Strapi
-// Prefer documentId; if only numeric id is available, try to fetch documentId from Strapi
-// and fall back to the numeric id if lookup fails.
+
 const resolveComponentRelationIdentifier = async (
   value: unknown,
   key: string,
@@ -115,122 +113,118 @@ const normalizeAddressComponent = async (
   return cleaned;
 };
 
-const buildUserFilter = (rawUserId: string) => {
-  const trimmedUserId = String(rawUserId || "").trim();
-  const numericUserId = Number(trimmedUserId);
-  const isNumericUserId = trimmedUserId !== "" && Number.isFinite(numericUserId);
+const getUserIdentifiers = (session: unknown) => {
+  const s = session as { userId?: unknown; userDocumentId?: unknown };
+  const userIdRaw = typeof s?.userId === "string" ? s.userId : String(s?.userId ?? "");
+  const userIdNumber = Number(userIdRaw);
+  const userDocumentId =
+    typeof s?.userDocumentId === "string" && s.userDocumentId.trim() !== ""
+      ? s.userDocumentId.trim()
+      : null;
 
   return {
-    isNumericUserId,
-    userIdentifier: isNumericUserId ? numericUserId : trimmedUserId,
-    userFilters: [
-      isNumericUserId
-        ? `filters[userId][$eq]=${numericUserId}`
-        : `filters[userId][$eq]=${encodeURIComponent(trimmedUserId)}`,
-    ],
+    userIdRaw,
+    userIdNumber: Number.isFinite(userIdNumber) ? userIdNumber : null,
+    userDocumentId,
   };
 };
 
-const fetchUserProfiles = async ({
+const parseStrapiCollectionResult = (raw: unknown) => {
+  const obj = raw as { data?: unknown; meta?: unknown };
+  const data = obj?.data;
+  const arr = Array.isArray(data)
+    ? (data as Record<string, unknown>[])
+    : data
+      ? ([data] as Record<string, unknown>[])
+      : [];
+  return { items: arr, meta: obj?.meta };
+};
+
+const fetchStudentProfileForUser = async ({
   strapiUrl,
-  userFilters,
   populateQuery,
-  authToken,
-  userIdentifier,
+  userJwt,
+  apiToken,
+  userIdNumber,
+  userDocumentId,
 }: {
   strapiUrl: string;
-  userFilters: string[];
   populateQuery: string;
-  authToken?: string;
-  userIdentifier: string | number;
-}) => {
-  let lastError: { status?: number; result?: Record<string, unknown>; url?: string; filter?: string } | null = null;
-  let sawInvalidKey = false;
-  const userIdentifierString = String(userIdentifier);
-  const numericUserIdentifier = Number(userIdentifier);
-  const hasNumericUserIdentifier = Number.isFinite(numericUserIdentifier);
+  userJwt?: string;
+  apiToken?: string;
+  userIdNumber: number | null;
+  userDocumentId: string | null;
+}): Promise<{ profile: Record<string, unknown> | null; raw: Record<string, unknown> }> => {
+  const safeUserPopulate = "populate[user][fields][0]=id&populate[user][fields][1]=documentId";
+  const baseQueryParts = [populateQuery, safeUserPopulate, "pagination[pageSize]=1"].filter(Boolean);
+  const baseQuery = baseQueryParts.join("&");
 
-  const matchesUser = (profile: Record<string, unknown>) => {
-    const profileUserId = profile.userId as unknown;
+  const candidates: string[] = [];
+  if (userDocumentId) {
+    candidates.push(`${strapiUrl}/api/student-profiles?filters[user][documentId][$eq]=${encodeURIComponent(userDocumentId)}&${baseQuery}`);
+  }
+  if (typeof userIdNumber === "number" && userIdNumber > 0) {
+    candidates.push(`${strapiUrl}/api/student-profiles?filters[user][id][$eq]=${userIdNumber}&${baseQuery}`);
+  }
 
-    if (typeof profileUserId === "number" && hasNumericUserIdentifier && profileUserId === numericUserIdentifier) {
-      return true;
-    }
-
-    if (typeof profileUserId === "string" && profileUserId === userIdentifierString) {
-      return true;
-    }
-
-    return false;
+  const tryFetch = async (url: string, token?: string) => {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      cache: "no-store",
+    });
+    const raw = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+    return { ok: response.ok, status: response.status, raw };
   };
 
-  for (let i = 0; i < userFilters.length; i += 1) {
-    const filter = userFilters[i];
-    const query = populateQuery ? `${populateQuery}&${filter}` : filter;
-    const url = `${strapiUrl}/api/student-profiles?${query}`;
-
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        ...(authToken && { Authorization: `Bearer ${authToken}` }),
-      },
-    });
-
-    const result = await response.json().catch(() => ({}));
-
-    if (response.ok) {
-      const profiles = Array.isArray(result?.data)
-        ? result.data
-        : result?.data
-        ? [result.data]
-        : [];
-      return { ok: true, result, profiles, url, filter };
-    }
-
-    lastError = { status: response.status, result, url, filter };
+  const isInvalidKeyUser = (raw: Record<string, unknown>, status: number) => {
+    if (status !== 400) return false;
     const message =
-      (result as { error?: { message?: string }; message?: string })?.error?.message ||
-      (result as { message?: string })?.message;
-    const invalidKey =
-      response.status === 400 &&
-      (typeof message === "string" && message.includes("Invalid key"));
+      (raw as { error?: { message?: unknown } })?.error?.message ??
+      (raw as { message?: unknown })?.message;
+    return typeof message === "string" && message.includes("Invalid key user");
+  };
 
-    if (invalidKey) {
-      sawInvalidKey = true;
-      continue;
+  // 1) Try relation filters first (prefer user documentId)
+  for (const url of candidates) {
+    for (const token of [apiToken, userJwt]) {
+      const res = await tryFetch(url, token);
+      if (res.ok) {
+        const { items } = parseStrapiCollectionResult(res.raw);
+        return { profile: items[0] || null, raw: res.raw };
+      }
+
+      if (isInvalidKeyUser(res.raw, res.status)) {
+        // Try next strategy / next url
+        continue;
+      }
+
+      // Other errors: return immediately
+      return { profile: null, raw: res.raw };
     }
-
-    return { ok: false, error: lastError };
   }
 
-  if (sawInvalidKey) {
-    const url = populateQuery
-      ? `${strapiUrl}/api/student-profiles?${populateQuery}`
-      : `${strapiUrl}/api/student-profiles`;
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        ...(authToken && { Authorization: `Bearer ${authToken}` }),
-      },
+  // 2) Fallback: unfiltered fetch (then match by populated user)
+  const fallbackUrl = `${strapiUrl}/api/student-profiles?${baseQuery}`;
+  for (const token of [apiToken, userJwt]) {
+    const res = await tryFetch(fallbackUrl, token);
+    if (!res.ok) continue;
+
+    const { items } = parseStrapiCollectionResult(res.raw);
+    const matched = items.find((p) => {
+      const u = (p.user as { id?: unknown; documentId?: unknown } | undefined) ?? undefined;
+      if (userDocumentId && typeof u?.documentId === "string" && u.documentId === userDocumentId) return true;
+      if (typeof userIdNumber === "number" && typeof u?.id === "number" && u.id === userIdNumber) return true;
+      return false;
     });
-    const result = await response.json().catch(() => ({}));
 
-    if (response.ok) {
-      const profiles = Array.isArray(result?.data)
-        ? result.data
-        : result?.data
-        ? [result.data]
-        : [];
-      const filtered = profiles.filter((profile: Record<string, unknown>) => matchesUser(profile));
-      return { ok: true, result, profiles: filtered, url, filter: "fallback-unfiltered" };
-    }
-
-    lastError = { status: response.status, result, url, filter: "fallback-unfiltered" };
+    return { profile: matched || null, raw: res.raw };
   }
 
-  return { ok: false, error: lastError };
+  return { profile: null, raw: {} };
 };
 
 export async function POST(request: NextRequest) {
@@ -261,72 +255,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Use the user's JWT token from session for authenticated requests
-    // This allows the user to create/update their own profile using their permissions
-    // Fall back to API token if JWT is not available
+
     const userJwt = session.jwt;
     const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
     const authToken = userJwt || apiToken;
 
-    // Since Strapi creates a student profile on signup, we should UPDATE the existing profile
-    // instead of creating a new one. First, check if a profile exists for this user.
-    if (!session.userId) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
+    const { userIdNumber, userDocumentId } = getUserIdentifiers(session);
 
-    const { userIdentifier, userFilters } = buildUserFilter(session.userId);
-    const populateQuery = "";
-    const verifyResult = await fetchUserProfiles({
+    // Since Strapi creates a student profile on signup, prefer updating the existing profile.
+    const existing = await fetchStudentProfileForUser({
       strapiUrl,
-      userFilters,
-      populateQuery,
-      authToken,
-      userIdentifier,
-    });
-    
-    console.log("Checking for existing profile (POST):", {
-      userId: userIdentifier,
-      verifyUrl: verifyResult?.url,
-      usedFilter: verifyResult?.filter,
+      populateQuery: "",
+      userJwt,
+      apiToken,
+      userIdNumber,
+      userDocumentId,
     });
 
-    let existingProfile = null;
-    let existingProfileId: number | null = null;
-    let existingProfileDocumentId: string | null = null;
-    
-    if (verifyResult.ok) {
-      const userProfiles = verifyResult.profiles;
-      
-      if (userProfiles.length > 0) {
-        existingProfile = userProfiles[0];
-        existingProfileId = existingProfile?.id;
-        existingProfileDocumentId = (existingProfile as { documentId?: string })?.documentId || null;
-        console.log("Existing profile found (POST will update):", {
-          profileId: existingProfileId,
-          documentId: existingProfileDocumentId,
-          userId: userIdentifier,
-        });
-      } else {
-        console.log("No existing profile found (POST will create):", { userId: userIdentifier });
-      }
-    } else {
-      console.warn("Could not verify existing profile (POST will attempt to create):", {
-        status: verifyResult.error?.status,
-        userId: userIdentifier,
-      });
-    }
+    const existingProfile = existing.profile;
+    const existingProfileId = (existingProfile as { id?: number })?.id ?? null;
+    const existingProfileDocumentId =
+      (existingProfile as { documentId?: string })?.documentId ?? null;
 
     // Associate the profile with the logged-in user
     // Remove email field if present (not in Strapi schema)
     const profileData = Object.fromEntries(
-      Object.entries(body.data).filter(([key]) => key !== 'email' && key !== 'id')
+      Object.entries(body.data).filter(
+        ([key]) =>
+          key !== "email" &&
+          key !== "id" &&
+          key !== "documentId" &&
+          key !== "userId" &&
+          key !== "user"
+      )
     );
-    
-    // Set the user relation to associate this profile with the logged-in user
-    profileData.userId = userIdentifier;
 
     // Addresses are components; normalize relation fields to documentId connect payloads
 
@@ -706,7 +668,6 @@ export async function POST(request: NextRequest) {
         profileId: existingProfileId,
         documentId: existingProfileDocumentId,
         usingIdentifier: profileIdentifier,
-        userId: userIdentifier,
       });
 
       const updateUrl = `${strapiUrl}/api/student-profiles/${profileIdentifier}`;
@@ -767,7 +728,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(result, { status: 200 });
     } else {
       // No existing profile found - create new one (edge case, shouldn't happen if Strapi auto-creates)
-      console.log("Creating new profile (no existing profile found):", { userId: userIdentifier });
+      console.log("Creating new profile (no existing profile found)");
+
+      // Set the user relation on create (prefer user documentId)
+      if (userDocumentId || (typeof userIdNumber === "number" && userIdNumber > 0)) {
+        (profileData as Record<string, unknown>).user =
+          userDocumentId || userIdNumber;
+      }
 
     const response = await fetch(`${strapiUrl}/api/student-profiles`, {
       method: "POST",
@@ -834,6 +801,7 @@ export async function GET(request: NextRequest) {
     }
 
     const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
+    const userJwt = session.jwt;
     const requestUrl = new URL(request.url);
     
     // Extract the original query string and preserve all populate parameters
@@ -864,25 +832,17 @@ export async function GET(request: NextRequest) {
       queryStringParts.push('populate=*');
     }
     
-    if (!session.userId) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    // Add user filter (we don't need to populate user, just filter by it)
-    const { userIdentifier, userFilters, isNumericUserId } = buildUserFilter(session.userId);
     const populateQuery = queryStringParts.join('&');
-    const fetchResult = await fetchUserProfiles({
+    const { userIdNumber, userDocumentId } = getUserIdentifiers(session);
+    const fetchResult = await fetchStudentProfileForUser({
       strapiUrl,
-      userFilters,
       populateQuery,
-      authToken: apiToken,
-      userIdentifier,
+      userJwt,
+      apiToken,
+      userIdNumber,
+      userDocumentId,
     });
-    
-    const url = fetchResult?.url || `${strapiUrl}/api/student-profiles?${populateQuery}`;
+    const url = `${strapiUrl}/api/student-profiles?${populateQuery}`;
     
     console.log("Fetching profile:", { 
       originalQuery,
@@ -890,51 +850,9 @@ export async function GET(request: NextRequest) {
       populateParams,
       queryStringParts,
       url,
-      userId: userIdentifier,
-      isNumericUserId,
     });
 
-    if (!fetchResult.ok) {
-      console.error("Strapi fetch error:", { status: fetchResult.error?.status, error: fetchResult.error?.result });
-      const errorMessage =
-        (fetchResult.error?.result as { error?: { message?: string }; message?: string })?.error?.message ||
-        (fetchResult.error?.result as { message?: string })?.message ||
-        "Failed to fetch student profiles";
-      
-      return NextResponse.json(
-        { error: errorMessage, details: fetchResult.error?.result },
-        { status: fetchResult.error?.status || 500 }
-      );
-    }
-
-    const result = fetchResult.result;
-    const responseData = fetchResult.profiles;
-
-    console.log("Strapi response:", { 
-      hasData: responseData.length > 0,
-      isArray: Array.isArray(result?.data),
-      dataLength: responseData.length,
-      firstProfileUserId: responseData[0]?.user?.id,
-    });
-
-    // Strapi should return only the user's profile due to the filter
-    // But we still validate server-side for security
-    let filteredData = null;
-    
-    type ProfileData = {
-      userId?: string | number;
-      [key: string]: unknown;
-    };
-    
-    if (responseData.length > 0) {
-      const { userIdentifier } = buildUserFilter(session.userId);
-      filteredData = responseData.find((profile: ProfileData) => {
-        return (
-          profile.userId === userIdentifier ||
-          profile.userId === Number(userIdentifier)
-        );
-      }) || responseData[0] || null;
-    }
+    const filteredData = fetchResult.profile;
     
     console.log("Final filtered data:", { 
       hasData: !!filteredData, 
@@ -946,7 +864,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       { 
         data: filteredData, 
-        meta: result.meta || { pagination: { total: filteredData ? 1 : 0 } } 
+        meta: (fetchResult.raw as { meta?: unknown })?.meta || { pagination: { total: filteredData ? 1 : 0 } } 
       },
       { status: 200 }
     );
@@ -989,88 +907,24 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    if (!session.userId) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
     const userJwt = session.jwt;
     const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
     const authToken = userJwt || apiToken;
-    const { userIdentifier, userFilters } = buildUserFilter(session.userId);
-
-    // Verify the profile belongs to the logged-in user and get the actual documentId
-    // Since Strapi auto-creates profiles, we need to fetch the profile to get its documentId
-    const verifyResponse = await fetchUserProfiles({
+    const { userIdNumber, userDocumentId } = getUserIdentifiers(session);
+    const existing = await fetchStudentProfileForUser({
       strapiUrl,
-      userFilters,
       populateQuery: "",
-      authToken: apiToken,
-      userIdentifier,
+      userJwt,
+      apiToken,
+      userIdNumber,
+      userDocumentId,
     });
 
-    if (!verifyResponse.ok) {
-      const verifyError = verifyResponse.error?.result;
-      console.error("Profile verification failed:", {
-        status: verifyResponse.error?.status,
-        error: verifyError,
-        userId: userIdentifier,
-      });
+    const userProfile = existing.profile;
+    if (!userProfile) {
       return NextResponse.json(
-        { error: (verifyError as { error?: { message?: string }; message?: string })?.error?.message || (verifyError as { message?: string })?.message || "Failed to verify profile ownership", details: verifyError },
-        { status: verifyResponse.error?.status || 500 }
-      );
-    }
-
-    const userProfiles = verifyResponse.profiles;
-    
-    if (userProfiles.length === 0) {
-      // No profile found for this user. Create one instead of returning 404.
-      const createData = Object.fromEntries(
-        Object.entries(body.data).filter(([key]) => key !== "email" && key !== "id" && key !== "documentId")
-      );
-      createData.userId = userIdentifier;
-
-      const createResponse = await fetch(`${strapiUrl}/api/student-profiles`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(userJwt && { Authorization: `Bearer ${userJwt}` }),
-          ...(!userJwt && apiToken && { Authorization: `Bearer ${apiToken}` }),
-        },
-        body: JSON.stringify({ data: createData }),
-      });
-
-      const createResult = await createResponse.json().catch(() => ({}));
-      if (createResponse.ok) {
-        return NextResponse.json(createResult, { status: 200 });
-      }
-
-      const errorMessage =
-        (createResult as { error?: { message?: string }; message?: string })?.error?.message ||
-        (createResult as { message?: string })?.message ||
-        "Student profile not found. Please complete your profile first.";
-
-      return NextResponse.json(
-        { error: errorMessage, details: createResult },
-        { status: createResponse.status || 500 }
-      );
-    }
-
-    const userProfile = userProfiles[0];
-    const requestedProfileId = body.data.id ? Number(body.data.id) : null;
-    const requestedDocumentId = body.data.documentId || null;
-    
-    // Verify ownership by checking both id and documentId
-    if (
-      (requestedProfileId && userProfile.id !== requestedProfileId) ||
-      (requestedDocumentId && userProfile.documentId !== requestedDocumentId)
-    ) {
-      return NextResponse.json(
-        { error: "Access denied. You can only update your own profile." },
-        { status: 403 }
+        { error: "Student profile not found. Please refresh and try again." },
+        { status: 404 }
       );
     }
 
@@ -1081,19 +935,21 @@ export async function PUT(request: NextRequest) {
     const finalIdentifier = actualDocumentId || actualProfileId;
 
     console.log("Profile verification successful:", {
-      requestedId: requestedProfileId,
-      requestedDocumentId,
       actualId: actualProfileId,
       actualDocumentId,
       usingIdentifier: finalIdentifier,
-      userId: userIdentifier,
     });
 
-    // Remove email, id, and documentId fields if present
-    // These should not be in the update payload - Strapi identifies records by URL parameter
-    // Keep all other fields including specialNeed (boolean) and specialNeedDescription
+
     const updateData = Object.fromEntries(
-      Object.entries(body.data).filter(([key]) => key !== 'email' && key !== 'id' && key !== 'documentId')
+      Object.entries(body.data).filter(
+        ([key]) =>
+          key !== "email" &&
+          key !== "id" &&
+          key !== "documentId" &&
+          key !== "userId" &&
+          key !== "user"
+      )
     );
     
     // Ensure boolean fields are preserved (including false values)
@@ -1152,9 +1008,7 @@ export async function PUT(request: NextRequest) {
       return cleaned;
     };
 
-    // Components (addresses) should NOT have their ID in the payload for updates
-    // Strapi identifies components by field name, not by ID
-    // Relations in components should connect via documentId when possible
+
     if (updateData.residentialAddress && typeof updateData.residentialAddress === "object") {
       const cleaned = await normalizeAddressComponent(
         updateData.residentialAddress as Record<string, unknown>,
@@ -1600,24 +1454,14 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Update the profile
-    // Use user's JWT for the update since we've verified ownership
-    // Strapi permissions may require the user's own token for updates
-    // Components are already cleaned above (lines 754-777)
-    // They have their relations cleaned and IDs removed
 
-    // Update the profile using documentId (preferred) or numeric id from the fetched profile
-    // This ensures we use the correct identifier that Strapi expects
     const updateUrl = `${strapiUrl}/api/student-profiles/${finalIdentifier}?populate=*`;
     
     console.log("Updating profile:", {
-      requestedId: requestedProfileId,
-      requestedDocumentId,
       actualId: actualProfileId,
       actualDocumentId,
       usingIdentifier: finalIdentifier,
       updateUrl,
-      userId: userIdentifier,
       updateDataKeys: Object.keys(updateData),
       hasSpecialNeed: 'specialNeed' in updateData,
       specialNeedValue: updateData.specialNeed,
