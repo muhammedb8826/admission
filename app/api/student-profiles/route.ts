@@ -197,12 +197,7 @@ const fetchUserProfiles = async ({
         : result?.data
         ? [result.data]
         : [];
-
-      if (profiles.length > 0 || i === userFilters.length - 1) {
-        return { ok: true, result, profiles, url, filter };
-      }
-
-      continue;
+      return { ok: true, result, profiles, url, filter };
     }
 
     lastError = { status: response.status, result, url, filter };
@@ -215,11 +210,10 @@ const fetchUserProfiles = async ({
 
     if (invalidKey) {
       sawInvalidKey = true;
+      continue;
     }
 
-    if (!invalidKey || i === userFilters.length - 1) {
-      return { ok: false, error: lastError };
-    }
+    return { ok: false, error: lastError };
   }
 
   if (sawInvalidKey) {
