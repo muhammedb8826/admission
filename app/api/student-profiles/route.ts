@@ -123,10 +123,132 @@ const buildUserFilter = (rawUserId: string) => {
   return {
     isNumericUserId,
     userIdentifier: isNumericUserId ? numericUserId : trimmedUserId,
-    userFilter: isNumericUserId
-      ? `filters[user][id][$eq]=${numericUserId}`
-      : `filters[user][documentId][$eq]=${encodeURIComponent(trimmedUserId)}`,
+    userFilters: [
+      isNumericUserId
+        ? `filters[userId][$eq]=${numericUserId}`
+        : `filters[userId][$eq]=${encodeURIComponent(trimmedUserId)}`,
+      isNumericUserId
+        ? `filters[user][id][$eq]=${numericUserId}`
+        : `filters[user][documentId][$eq]=${encodeURIComponent(trimmedUserId)}`,
+    ],
   };
+};
+
+const fetchUserProfiles = async ({
+  strapiUrl,
+  userFilters,
+  populateQuery,
+  authToken,
+  userIdentifier,
+}: {
+  strapiUrl: string;
+  userFilters: string[];
+  populateQuery: string;
+  authToken?: string;
+  userIdentifier: string | number;
+}) => {
+  let lastError: { status?: number; result?: Record<string, unknown>; url?: string; filter?: string } | null = null;
+  let sawInvalidKey = false;
+  const userIdentifierString = String(userIdentifier);
+  const numericUserIdentifier = Number(userIdentifier);
+  const hasNumericUserIdentifier = Number.isFinite(numericUserIdentifier);
+
+  const matchesUser = (profile: Record<string, unknown>) => {
+    const profileUser = profile.user as { id?: number; documentId?: string } | undefined;
+    const profileUserId = profile.userId as unknown;
+
+    if (profileUser?.id !== undefined && hasNumericUserIdentifier && profileUser.id === numericUserIdentifier) {
+      return true;
+    }
+
+    if (profileUser?.documentId && profileUser.documentId === userIdentifierString) {
+      return true;
+    }
+
+    if (typeof profileUserId === "number" && hasNumericUserIdentifier && profileUserId === numericUserIdentifier) {
+      return true;
+    }
+
+    if (typeof profileUserId === "string" && profileUserId === userIdentifierString) {
+      return true;
+    }
+
+    return false;
+  };
+
+  for (let i = 0; i < userFilters.length; i += 1) {
+    const filter = userFilters[i];
+    const query = populateQuery ? `${populateQuery}&${filter}` : filter;
+    const url = `${strapiUrl}/api/student-profiles?${query}`;
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(authToken && { Authorization: `Bearer ${authToken}` }),
+      },
+    });
+
+    const result = await response.json().catch(() => ({}));
+
+    if (response.ok) {
+      const profiles = Array.isArray(result?.data)
+        ? result.data
+        : result?.data
+        ? [result.data]
+        : [];
+
+      if (profiles.length > 0 || i === userFilters.length - 1) {
+        return { ok: true, result, profiles, url, filter };
+      }
+
+      continue;
+    }
+
+    lastError = { status: response.status, result, url, filter };
+    const message =
+      (result as { error?: { message?: string }; message?: string })?.error?.message ||
+      (result as { message?: string })?.message;
+    const invalidKey =
+      response.status === 400 &&
+      (typeof message === "string" && message.includes("Invalid key"));
+
+    if (invalidKey) {
+      sawInvalidKey = true;
+    }
+
+    if (!invalidKey || i === userFilters.length - 1) {
+      return { ok: false, error: lastError };
+    }
+  }
+
+  if (sawInvalidKey) {
+    const url = populateQuery
+      ? `${strapiUrl}/api/student-profiles?${populateQuery}`
+      : `${strapiUrl}/api/student-profiles`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(authToken && { Authorization: `Bearer ${authToken}` }),
+      },
+    });
+    const result = await response.json().catch(() => ({}));
+
+    if (response.ok) {
+      const profiles = Array.isArray(result?.data)
+        ? result.data
+        : result?.data
+        ? [result.data]
+        : [];
+      const filtered = profiles.filter((profile: Record<string, unknown>) => matchesUser(profile));
+      return { ok: true, result, profiles: filtered, url, filter: "fallback-unfiltered" };
+    }
+
+    lastError = { status: response.status, result, url, filter: "fallback-unfiltered" };
+  }
+
+  return { ok: false, error: lastError };
 };
 
 export async function POST(request: NextRequest) {
@@ -173,29 +295,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { userIdentifier, userFilter } = buildUserFilter(session.userId);
-    const userProfileUrl = `${strapiUrl}/api/student-profiles?${userFilter}&populate=user`;
+    const { userIdentifier, userFilters } = buildUserFilter(session.userId);
+    const populateQuery = "populate=user";
+    const verifyResult = await fetchUserProfiles({
+      strapiUrl,
+      userFilters,
+      populateQuery,
+      authToken,
+      userIdentifier,
+    });
     
     console.log("Checking for existing profile (POST):", {
       userId: userIdentifier,
-      verifyUrl: userProfileUrl,
-    });
-    
-    const verifyResponse = await fetch(userProfileUrl, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        ...(authToken && { Authorization: `Bearer ${authToken}` }),
-      },
+      verifyUrl: verifyResult?.url,
+      usedFilter: verifyResult?.filter,
     });
 
     let existingProfile = null;
     let existingProfileId: number | null = null;
     let existingProfileDocumentId: string | null = null;
     
-    if (verifyResponse.ok) {
-      const verifyResult = await verifyResponse.json().catch(() => ({}));
-      const userProfiles = Array.isArray(verifyResult?.data) ? verifyResult.data : (verifyResult?.data ? [verifyResult.data] : []);
+    if (verifyResult.ok) {
+      const userProfiles = verifyResult.profiles;
       
       if (userProfiles.length > 0) {
         existingProfile = userProfiles[0];
@@ -211,7 +332,7 @@ export async function POST(request: NextRequest) {
       }
     } else {
       console.warn("Could not verify existing profile (POST will attempt to create):", {
-        status: verifyResponse.status,
+        status: verifyResult.error?.status,
         userId: userIdentifier,
       });
     }
@@ -769,10 +890,17 @@ export async function GET(request: NextRequest) {
     }
 
     // Add user filter (we don't need to populate user, just filter by it)
-    const { userIdentifier, userFilter, isNumericUserId } = buildUserFilter(session.userId);
-    queryStringParts.push(userFilter);
+    const { userIdentifier, userFilters, isNumericUserId } = buildUserFilter(session.userId);
+    const populateQuery = queryStringParts.join('&');
+    const fetchResult = await fetchUserProfiles({
+      strapiUrl,
+      userFilters,
+      populateQuery,
+      authToken: apiToken,
+      userIdentifier,
+    });
     
-    const url = `${strapiUrl}/api/student-profiles?${queryStringParts.join('&')}`;
+    const url = fetchResult?.url || `${strapiUrl}/api/student-profiles?${populateQuery}`;
     
     console.log("Fetching profile:", { 
       originalQuery,
@@ -783,35 +911,28 @@ export async function GET(request: NextRequest) {
       userId: userIdentifier,
       isNumericUserId,
     });
-    
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        ...(apiToken && { Authorization: `Bearer ${apiToken}` }),
-      },
-    });
 
-    const result = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      console.error("Strapi fetch error:", { status: response.status, error: result });
+    if (!fetchResult.ok) {
+      console.error("Strapi fetch error:", { status: fetchResult.error?.status, error: fetchResult.error?.result });
       const errorMessage =
-        result?.error?.message ||
-        result?.message ||
+        (fetchResult.error?.result as { error?: { message?: string }; message?: string })?.error?.message ||
+        (fetchResult.error?.result as { message?: string })?.message ||
         "Failed to fetch student profiles";
       
       return NextResponse.json(
-        { error: errorMessage },
-        { status: response.status || 500 }
+        { error: errorMessage, details: fetchResult.error?.result },
+        { status: fetchResult.error?.status || 500 }
       );
     }
 
+    const result = fetchResult.result;
+    const responseData = fetchResult.profiles;
+
     console.log("Strapi response:", { 
-      hasData: !!result?.data, 
+      hasData: responseData.length > 0,
       isArray: Array.isArray(result?.data),
-      dataLength: Array.isArray(result?.data) ? result.data.length : result?.data ? 1 : 0,
-      firstProfileUserId: Array.isArray(result?.data) ? result.data[0]?.user?.id : result?.data?.user?.id,
+      dataLength: responseData.length,
+      firstProfileUserId: responseData[0]?.user?.id,
     });
 
     // Strapi should return only the user's profile due to the filter
@@ -823,20 +944,20 @@ export async function GET(request: NextRequest) {
         id?: number;
         documentId?: string;
       };
+      userId?: string | number;
       [key: string]: unknown;
     };
     
-    if (result?.data) {
-      if (Array.isArray(result.data)) {
-        // Filter should have already filtered by user, so return first match or first item
-        const { userIdentifier } = buildUserFilter(session.userId);
-        filteredData = result.data.find((profile: ProfileData) => {
-          return profile.user?.id === userIdentifier || profile.user?.documentId === userIdentifier;
-        }) || result.data[0] || null;
-      } else if (result.data) {
-        // Single object - filter should have worked, so return it
-        filteredData = result.data;
-      }
+    if (responseData.length > 0) {
+      const { userIdentifier } = buildUserFilter(session.userId);
+      filteredData = responseData.find((profile: ProfileData) => {
+        return (
+          profile.user?.id === userIdentifier ||
+          profile.user?.documentId === userIdentifier ||
+          profile.userId === userIdentifier ||
+          profile.userId === Number(userIdentifier)
+        );
+      }) || responseData[0] || null;
     }
     
     console.log("Final filtered data:", { 
@@ -902,36 +1023,32 @@ export async function PUT(request: NextRequest) {
     const userJwt = session.jwt;
     const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
     const authToken = userJwt || apiToken;
-    const { userIdentifier, userFilter } = buildUserFilter(session.userId);
+    const { userIdentifier, userFilters } = buildUserFilter(session.userId);
 
     // Verify the profile belongs to the logged-in user and get the actual documentId
     // Since Strapi auto-creates profiles, we need to fetch the profile to get its documentId
-    const verifyResponse = await fetch(
-      `${strapiUrl}/api/student-profiles?${userFilter}&populate=user`,
-      {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          ...(apiToken && { Authorization: `Bearer ${apiToken}` }),
-        },
-      }
-    );
+    const verifyResponse = await fetchUserProfiles({
+      strapiUrl,
+      userFilters,
+      populateQuery: "populate=user",
+      authToken: apiToken,
+      userIdentifier,
+    });
 
     if (!verifyResponse.ok) {
-      const verifyError = await verifyResponse.json().catch(() => ({}));
+      const verifyError = verifyResponse.error?.result;
       console.error("Profile verification failed:", {
-        status: verifyResponse.status,
+        status: verifyResponse.error?.status,
         error: verifyError,
         userId: userIdentifier,
       });
       return NextResponse.json(
-        { error: verifyError?.error?.message || verifyError?.message || "Failed to verify profile ownership", details: verifyError },
-        { status: verifyResponse.status || 500 }
+        { error: (verifyError as { error?: { message?: string }; message?: string })?.error?.message || (verifyError as { message?: string })?.message || "Failed to verify profile ownership", details: verifyError },
+        { status: verifyResponse.error?.status || 500 }
       );
     }
 
-    const verifyResult = await verifyResponse.json().catch(() => ({}));
-    const userProfiles = Array.isArray(verifyResult?.data) ? verifyResult.data : (verifyResult?.data ? [verifyResult.data] : []);
+    const userProfiles = verifyResponse.profiles;
     
     if (userProfiles.length === 0) {
       return NextResponse.json(
