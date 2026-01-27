@@ -1128,9 +1128,7 @@ export function StudentProfileCompletionForm() {
 
       const url = "/api/student-profiles";
       const method = profileId ? "PUT" : "POST";
-      const body = profileId 
-        ? { data: { id: profileId, ...extendedPayload } }
-        : { data: extendedPayload };
+      const body = { data: extendedPayload };
 
       console.log("Saving progress to backend:", { method, url, profileId, payloadKeys: Object.keys(extendedPayload) });
 
@@ -1175,7 +1173,7 @@ export function StudentProfileCompletionForm() {
             setProfileId(actualProfileId);
             
             // Retry the save with the correct ID
-            const retryBody = { data: { id: actualProfileId, ...extendedPayload } };
+            const retryBody = { data: extendedPayload };
             const retryResponse = await fetch(url, {
               method: "PUT",
               headers: {
@@ -1233,7 +1231,7 @@ export function StudentProfileCompletionForm() {
           setProfileId(actualProfileId);
           
           // Retry the save with the correct ID
-          const retryBody = { data: { id: actualProfileId, ...extendedPayload } };
+          const retryBody = { data: extendedPayload };
           const retryResponse = await fetch(url, {
             method: "PUT",
             headers: {
@@ -1298,7 +1296,7 @@ export function StudentProfileCompletionForm() {
                 setProfileId(correctProfileId);
                 
                 // Retry the save with the correct ID
-                const retryBody = { data: { id: correctProfileId, ...payload } };
+                const retryBody = { data: payload };
                 const retryResponse = await fetch(url, {
                   method: "PUT",
                   headers: {
@@ -1683,9 +1681,7 @@ export function StudentProfileCompletionForm() {
 
       const url = "/api/student-profiles";
       const method = profileId ? "PUT" : "POST";
-      const body = profileId 
-        ? { data: { id: profileId, ...payload } }
-        : { data: payload };
+      const body = { data: payload };
 
       const response = await fetch(url, {
         method,
@@ -1738,7 +1734,7 @@ export function StudentProfileCompletionForm() {
           setProfileId(actualProfileId);
           
           // Retry the save with the correct ID
-          const retryBody = { data: { id: actualProfileId, ...extendedPayload, isProfileComplete: true } };
+          const retryBody = { data: { ...extendedPayload, isProfileComplete: true } };
           const retryResponse = await fetch(url, {
             method: "PUT",
             headers: {
