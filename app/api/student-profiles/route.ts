@@ -115,6 +115,20 @@ const normalizeAddressComponent = async (
   return cleaned;
 };
 
+const buildUserFilter = (rawUserId: string) => {
+  const trimmedUserId = String(rawUserId || "").trim();
+  const numericUserId = Number(trimmedUserId);
+  const isNumericUserId = trimmedUserId !== "" && Number.isFinite(numericUserId);
+
+  return {
+    isNumericUserId,
+    userIdentifier: isNumericUserId ? numericUserId : trimmedUserId,
+    userFilter: isNumericUserId
+      ? `filters[user][id][$eq]=${numericUserId}`
+      : `filters[user][documentId][$eq]=${encodeURIComponent(trimmedUserId)}`,
+  };
+};
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
@@ -152,10 +166,20 @@ export async function POST(request: NextRequest) {
 
     // Since Strapi creates a student profile on signup, we should UPDATE the existing profile
     // instead of creating a new one. First, check if a profile exists for this user.
-    const userId = Number(session.userId);
-    const userProfileUrl = `${strapiUrl}/api/student-profiles?filters[user][id][$eq]=${userId}&populate=user`;
+    if (!session.userId) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const { userIdentifier, userFilter } = buildUserFilter(session.userId);
+    const userProfileUrl = `${strapiUrl}/api/student-profiles?${userFilter}&populate=user`;
     
-    console.log("Checking for existing profile (POST):", { userId, verifyUrl: userProfileUrl });
+    console.log("Checking for existing profile (POST):", {
+      userId: userIdentifier,
+      verifyUrl: userProfileUrl,
+    });
     
     const verifyResponse = await fetch(userProfileUrl, {
       method: "GET",
@@ -180,15 +204,15 @@ export async function POST(request: NextRequest) {
         console.log("Existing profile found (POST will update):", {
           profileId: existingProfileId,
           documentId: existingProfileDocumentId,
-          userId,
+          userId: userIdentifier,
         });
       } else {
-        console.log("No existing profile found (POST will create):", { userId });
+        console.log("No existing profile found (POST will create):", { userId: userIdentifier });
       }
     } else {
       console.warn("Could not verify existing profile (POST will attempt to create):", {
         status: verifyResponse.status,
-        userId,
+        userId: userIdentifier,
       });
     }
 
@@ -199,7 +223,7 @@ export async function POST(request: NextRequest) {
     );
     
     // Set the user relation to associate this profile with the logged-in user
-    profileData.user = Number(session.userId);
+    profileData.user = userIdentifier;
 
     // Addresses are components; normalize relation fields to documentId connect payloads
 
@@ -579,7 +603,7 @@ export async function POST(request: NextRequest) {
         profileId: existingProfileId,
         documentId: existingProfileDocumentId,
         usingIdentifier: profileIdentifier,
-        userId,
+        userId: userIdentifier,
       });
 
       const updateUrl = `${strapiUrl}/api/student-profiles/${profileIdentifier}`;
@@ -640,7 +664,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(result, { status: 200 });
     } else {
       // No existing profile found - create new one (edge case, shouldn't happen if Strapi auto-creates)
-      console.log("Creating new profile (no existing profile found):", { userId });
+      console.log("Creating new profile (no existing profile found):", { userId: userIdentifier });
 
     const response = await fetch(`${strapiUrl}/api/student-profiles`, {
       method: "POST",
@@ -737,9 +761,16 @@ export async function GET(request: NextRequest) {
       queryStringParts.push('populate=*');
     }
     
+    if (!session.userId) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     // Add user filter (we don't need to populate user, just filter by it)
-    const userId = Number(session.userId);
-    queryStringParts.push(`filters[user][id][$eq]=${userId}`);
+    const { userIdentifier, userFilter, isNumericUserId } = buildUserFilter(session.userId);
+    queryStringParts.push(userFilter);
     
     const url = `${strapiUrl}/api/student-profiles?${queryStringParts.join('&')}`;
     
@@ -749,7 +780,8 @@ export async function GET(request: NextRequest) {
       populateParams,
       queryStringParts,
       url,
-      userId 
+      userId: userIdentifier,
+      isNumericUserId,
     });
     
     const response = await fetch(url, {
@@ -789,6 +821,7 @@ export async function GET(request: NextRequest) {
     type ProfileData = {
       user?: {
         id?: number;
+        documentId?: string;
       };
       [key: string]: unknown;
     };
@@ -796,9 +829,9 @@ export async function GET(request: NextRequest) {
     if (result?.data) {
       if (Array.isArray(result.data)) {
         // Filter should have already filtered by user, so return first match or first item
-        const userId = Number(session.userId);
+        const { userIdentifier } = buildUserFilter(session.userId);
         filteredData = result.data.find((profile: ProfileData) => {
-          return profile.user?.id === userId;
+          return profile.user?.id === userIdentifier || profile.user?.documentId === userIdentifier;
         }) || result.data[0] || null;
       } else if (result.data) {
         // Single object - filter should have worked, so return it
@@ -859,15 +892,22 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    if (!session.userId) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const userJwt = session.jwt;
     const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
     const authToken = userJwt || apiToken;
-    const userId = Number(session.userId);
+    const { userIdentifier, userFilter } = buildUserFilter(session.userId);
 
     // Verify the profile belongs to the logged-in user and get the actual documentId
     // Since Strapi auto-creates profiles, we need to fetch the profile to get its documentId
     const verifyResponse = await fetch(
-      `${strapiUrl}/api/student-profiles?filters[user][id][$eq]=${userId}&populate=user`,
+      `${strapiUrl}/api/student-profiles?${userFilter}&populate=user`,
       {
         method: "GET",
         headers: {
@@ -882,10 +922,10 @@ export async function PUT(request: NextRequest) {
       console.error("Profile verification failed:", {
         status: verifyResponse.status,
         error: verifyError,
-        userId,
+        userId: userIdentifier,
       });
       return NextResponse.json(
-        { error: "Failed to verify profile ownership" },
+        { error: verifyError?.error?.message || verifyError?.message || "Failed to verify profile ownership", details: verifyError },
         { status: verifyResponse.status || 500 }
       );
     }
@@ -927,7 +967,7 @@ export async function PUT(request: NextRequest) {
       actualId: actualProfileId,
       actualDocumentId,
       usingIdentifier: finalIdentifier,
-      userId,
+      userId: userIdentifier,
     });
 
     // Remove email, id, and documentId fields if present
@@ -1458,7 +1498,7 @@ export async function PUT(request: NextRequest) {
       actualDocumentId,
       usingIdentifier: finalIdentifier,
       updateUrl,
-      userId,
+      userId: userIdentifier,
       updateDataKeys: Object.keys(updateData),
       hasSpecialNeed: 'specialNeed' in updateData,
       specialNeedValue: updateData.specialNeed,
