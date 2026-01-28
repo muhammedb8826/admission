@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -2025,81 +2026,61 @@ export function StudentProfileCompletionForm() {
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="residentialCountry">Country</Label>
-              <Select
+              <SearchableSelect
+                id="residentialCountry"
                 value={formData.residentialCountry?.toString() || ""}
-                onValueChange={(value) => handleCountryChange(value || null, 'residential')}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select country" />
-                </SelectTrigger>
-                <SelectContent>
-                  {countries.map((country) => (
-                    <SelectItem key={country.id} value={country.documentId || country.id.toString()}>
-                      {country.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onChange={(value) => handleCountryChange(value || null, "residential")}
+                options={countries.map((country) => ({
+                  value: country.documentId ?? country.id.toString(),
+                  label: country.name,
+                }))}
+                placeholder="Select country"
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="residentialRegion">Region</Label>
-              <Select
+              <SearchableSelect
+                id="residentialRegion"
                 value={formData.residentialRegion?.toString() || ""}
-                onValueChange={(value) => handleRegionChange(value || null, 'residential')}
+                onChange={(value) => handleRegionChange(value || null, "residential")}
+                options={residentialRegions.map((region) => ({
+                  value: region.documentId ?? region.id.toString(),
+                  label: region.name,
+                }))}
+                placeholder="Select region"
                 disabled={!formData.residentialCountry}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select region" />
-                </SelectTrigger>
-                <SelectContent>
-                  {residentialRegions.map((region) => (
-                    <SelectItem key={region.id} value={region.documentId || region.id.toString()}>
-                      {region.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="residentialZone">Zone</Label>
-              <Select
+              <SearchableSelect
+                id="residentialZone"
                 value={formData.residentialZone?.toString() || ""}
-                onValueChange={(value) => handleZoneChange(value || null, 'residential')}
+                onChange={(value) => handleZoneChange(value || null, "residential")}
+                options={residentialZones.map((zone) => ({
+                  value: zone.documentId ?? zone.id.toString(),
+                  label: zone.name,
+                }))}
+                placeholder="Select zone"
                 disabled={!formData.residentialRegion}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select zone" />
-                </SelectTrigger>
-                <SelectContent>
-                  {residentialZones.map((zone) => (
-                    <SelectItem key={zone.id} value={zone.documentId || zone.id.toString()}>
-                      {zone.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="residentialWoreda">Woreda</Label>
-              <Select
+              <SearchableSelect
+                id="residentialWoreda"
                 value={formData.residentialWoreda?.toString() || ""}
-                onValueChange={(value) => {
+                onChange={(value) => {
                   const resolved = resolveSelection(residentialWoredas, value || null);
                   handleInputChange("residentialWoreda", resolved.documentId ?? resolved.id);
                 }}
+                options={residentialWoredas.map((woreda) => ({
+                  value: woreda.documentId ?? woreda.id.toString(),
+                  label: woreda.name,
+                }))}
+                placeholder="Select woreda"
                 disabled={!formData.residentialZone}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select woreda" />
-                </SelectTrigger>
-                <SelectContent>
-                  {residentialWoredas.map((woreda) => (
-                    <SelectItem key={woreda.id} value={woreda.documentId || woreda.id.toString()}>
-                      {woreda.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="residentialKebele">Kebele</Label>
@@ -2131,81 +2112,61 @@ export function StudentProfileCompletionForm() {
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="birthCountry">Country</Label>
-              <Select
+              <SearchableSelect
+                id="birthCountry"
                 value={formData.birthCountry?.toString() || ""}
-                onValueChange={(value) => handleCountryChange(value || null, 'birth')}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select country" />
-                </SelectTrigger>
-                <SelectContent>
-                  {countries.map((country) => (
-                    <SelectItem key={country.id} value={country.documentId || country.id.toString()}>
-                      {country.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onChange={(value) => handleCountryChange(value || null, "birth")}
+                options={countries.map((country) => ({
+                  value: country.documentId ?? country.id.toString(),
+                  label: country.name,
+                }))}
+                placeholder="Select country"
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="birthRegion">Region</Label>
-              <Select
+              <SearchableSelect
+                id="birthRegion"
                 value={formData.birthRegion?.toString() || ""}
-                onValueChange={(value) => handleRegionChange(value || null, 'birth')}
+                onChange={(value) => handleRegionChange(value || null, "birth")}
+                options={birthRegions.map((region) => ({
+                  value: region.documentId ?? region.id.toString(),
+                  label: region.name,
+                }))}
+                placeholder="Select region"
                 disabled={!formData.birthCountry}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select region" />
-                </SelectTrigger>
-                <SelectContent>
-                  {birthRegions.map((region) => (
-                    <SelectItem key={region.id} value={region.documentId || region.id.toString()}>
-                      {region.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="birthZone">Zone</Label>
-              <Select
+              <SearchableSelect
+                id="birthZone"
                 value={formData.birthZone?.toString() || ""}
-                onValueChange={(value) => handleZoneChange(value || null, 'birth')}
+                onChange={(value) => handleZoneChange(value || null, "birth")}
+                options={birthZones.map((zone) => ({
+                  value: zone.documentId ?? zone.id.toString(),
+                  label: zone.name,
+                }))}
+                placeholder="Select zone"
                 disabled={!formData.birthRegion}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select zone" />
-                </SelectTrigger>
-                <SelectContent>
-                  {birthZones.map((zone) => (
-                    <SelectItem key={zone.id} value={zone.documentId || zone.id.toString()}>
-                      {zone.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="birthWoreda">Woreda</Label>
-              <Select
+              <SearchableSelect
+                id="birthWoreda"
                 value={formData.birthWoreda?.toString() || ""}
-                onValueChange={(value) => {
+                onChange={(value) => {
                   const resolved = resolveSelection(birthWoredas, value || null);
                   handleInputChange("birthWoreda", resolved.documentId ?? resolved.id);
                 }}
+                options={birthWoredas.map((woreda) => ({
+                  value: woreda.documentId ?? woreda.id.toString(),
+                  label: woreda.name,
+                }))}
+                placeholder="Select woreda"
                 disabled={!formData.birthZone}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select woreda" />
-                </SelectTrigger>
-                <SelectContent>
-                  {birthWoredas.map((woreda) => (
-                    <SelectItem key={woreda.id} value={woreda.documentId || woreda.id.toString()}>
-                      {woreda.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="birthKebele">Kebele</Label>
@@ -2357,81 +2318,61 @@ export function StudentProfileCompletionForm() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="ptbcCountry">Country</Label>
-              <Select
+              <SearchableSelect
+                id="ptbcCountry"
                 value={formData.ptbcCountry?.toString() || ""}
-                onValueChange={(value) => handleCountryChange(value || null, 'ptbc')}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select country" />
-                </SelectTrigger>
-                <SelectContent>
-                  {countries.map((country) => (
-                    <SelectItem key={country.id} value={country.documentId || country.id.toString()}>
-                      {country.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onChange={(value) => handleCountryChange(value || null, "ptbc")}
+                options={countries.map((country) => ({
+                  value: country.documentId ?? country.id.toString(),
+                  label: country.name,
+                }))}
+                placeholder="Select country"
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="ptbcRegion">Region</Label>
-              <Select
+              <SearchableSelect
+                id="ptbcRegion"
                 value={formData.ptbcRegion?.toString() || ""}
-                onValueChange={(value) => handleRegionChange(value || null, 'ptbc')}
+                onChange={(value) => handleRegionChange(value || null, "ptbc")}
+                options={ptbcRegions.map((region) => ({
+                  value: region.documentId ?? region.id.toString(),
+                  label: region.name,
+                }))}
+                placeholder="Select region"
                 disabled={!formData.ptbcCountry}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select region" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ptbcRegions.map((region) => (
-                    <SelectItem key={region.id} value={region.documentId || region.id.toString()}>
-                      {region.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="ptbcZone">Zone</Label>
-              <Select
+              <SearchableSelect
+                id="ptbcZone"
                 value={formData.ptbcZone?.toString() || ""}
-                onValueChange={(value) => handleZoneChange(value || null, 'ptbc')}
+                onChange={(value) => handleZoneChange(value || null, "ptbc")}
+                options={ptbcZones.map((zone) => ({
+                  value: zone.documentId ?? zone.id.toString(),
+                  label: zone.name,
+                }))}
+                placeholder="Select zone"
                 disabled={!formData.ptbcRegion}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select zone" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ptbcZones.map((zone) => (
-                    <SelectItem key={zone.id} value={zone.documentId || zone.id.toString()}>
-                      {zone.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="ptbcWoreda">Woreda</Label>
-              <Select
+              <SearchableSelect
+                id="ptbcWoreda"
                 value={formData.ptbcWoreda?.toString() || ""}
-                onValueChange={(value) => {
+                onChange={(value) => {
                   const resolved = resolveSelection(ptbcWoredas, value || null);
                   handleInputChange("ptbcWoreda", resolved.documentId ?? resolved.id);
                 }}
+                options={ptbcWoredas.map((woreda) => ({
+                  value: woreda.documentId ?? woreda.id.toString(),
+                  label: woreda.name,
+                }))}
+                placeholder="Select woreda"
                 disabled={!formData.ptbcZone}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select woreda" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ptbcWoredas.map((woreda) => (
-                    <SelectItem key={woreda.id} value={woreda.documentId || woreda.id.toString()}>
-                      {woreda.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </div>
           </div>
         </CardContent>
@@ -2521,81 +2462,61 @@ export function StudentProfileCompletionForm() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="primaryCountry">Country</Label>
-                  <Select
+                  <SearchableSelect
+                    id="primaryCountry"
                     value={formData.primaryCountry?.toString() || ""}
-                    onValueChange={(value) => handleCountryChange(value || null, 'primary')}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select country" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {countries.map((country) => (
-                        <SelectItem key={country.id} value={country.documentId || country.id.toString()}>
-                          {country.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onChange={(value) => handleCountryChange(value || null, "primary")}
+                    options={countries.map((country) => ({
+                      value: country.documentId ?? country.id.toString(),
+                      label: country.name,
+                    }))}
+                    placeholder="Select country"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="primaryRegion">Region</Label>
-                  <Select
+                  <SearchableSelect
+                    id="primaryRegion"
                     value={formData.primaryRegion?.toString() || ""}
-                    onValueChange={(value) => handleRegionChange(value || null, 'primary')}
+                    onChange={(value) => handleRegionChange(value || null, "primary")}
+                    options={primaryRegions.map((region) => ({
+                      value: region.documentId ?? region.id.toString(),
+                      label: region.name,
+                    }))}
+                    placeholder="Select region"
                     disabled={!formData.primaryCountry}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select region" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {primaryRegions.map((region) => (
-                        <SelectItem key={region.id} value={region.documentId || region.id.toString()}>
-                          {region.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="primaryZone">Zone</Label>
-                  <Select
+                  <SearchableSelect
+                    id="primaryZone"
                     value={formData.primaryZone?.toString() || ""}
-                    onValueChange={(value) => handleZoneChange(value || null, 'primary')}
+                    onChange={(value) => handleZoneChange(value || null, "primary")}
+                    options={primaryZones.map((zone) => ({
+                      value: zone.documentId ?? zone.id.toString(),
+                      label: zone.name,
+                    }))}
+                    placeholder="Select zone"
                     disabled={!formData.primaryRegion}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select zone" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {primaryZones.map((zone) => (
-                        <SelectItem key={zone.id} value={zone.documentId || zone.id.toString()}>
-                          {zone.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="primaryWoreda">Woreda</Label>
-                  <Select
+                  <SearchableSelect
+                    id="primaryWoreda"
                     value={formData.primaryWoreda?.toString() || ""}
-                    onValueChange={(value) => {
+                    onChange={(value) => {
                       const resolved = resolveSelection(primaryWoredas, value || null);
                       handleInputChange("primaryWoreda", resolved.documentId ?? resolved.id);
                     }}
+                    options={primaryWoredas.map((woreda) => ({
+                      value: woreda.documentId ?? woreda.id.toString(),
+                      label: woreda.name,
+                    }))}
+                    placeholder="Select woreda"
                     disabled={!formData.primaryZone}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select woreda" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {primaryWoredas.map((woreda) => (
-                        <SelectItem key={woreda.id} value={woreda.documentId || woreda.id.toString()}>
-                          {woreda.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  />
                 </div>
               </div>
             </CardContent>
@@ -2654,81 +2575,61 @@ export function StudentProfileCompletionForm() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="secondaryCountry">Country</Label>
-                  <Select
+                  <SearchableSelect
+                    id="secondaryCountry"
                     value={formData.secondaryCountry?.toString() || ""}
-                    onValueChange={(value) => handleCountryChange(value || null, 'secondary')}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select country" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {countries.map((country) => (
-                        <SelectItem key={country.id} value={country.documentId || country.id.toString()}>
-                          {country.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onChange={(value) => handleCountryChange(value || null, "secondary")}
+                    options={countries.map((country) => ({
+                      value: country.documentId ?? country.id.toString(),
+                      label: country.name,
+                    }))}
+                    placeholder="Select country"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="secondaryRegion">Region</Label>
-                  <Select
+                  <SearchableSelect
+                    id="secondaryRegion"
                     value={formData.secondaryRegion?.toString() || ""}
-                    onValueChange={(value) => handleRegionChange(value || null, 'secondary')}
+                    onChange={(value) => handleRegionChange(value || null, "secondary")}
+                    options={secondaryRegions.map((region) => ({
+                      value: region.documentId ?? region.id.toString(),
+                      label: region.name,
+                    }))}
+                    placeholder="Select region"
                     disabled={!formData.secondaryCountry}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select region" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {secondaryRegions.map((region) => (
-                        <SelectItem key={region.id} value={region.documentId || region.id.toString()}>
-                          {region.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="secondaryZone">Zone</Label>
-                  <Select
+                  <SearchableSelect
+                    id="secondaryZone"
                     value={formData.secondaryZone?.toString() || ""}
-                    onValueChange={(value) => handleZoneChange(value || null, 'secondary')}
+                    onChange={(value) => handleZoneChange(value || null, "secondary")}
+                    options={secondaryZones.map((zone) => ({
+                      value: zone.documentId ?? zone.id.toString(),
+                      label: zone.name,
+                    }))}
+                    placeholder="Select zone"
                     disabled={!formData.secondaryRegion}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select zone" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {secondaryZones.map((zone) => (
-                        <SelectItem key={zone.id} value={zone.documentId || zone.id.toString()}>
-                          {zone.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="secondaryWoreda">Woreda</Label>
-                  <Select
+                  <SearchableSelect
+                    id="secondaryWoreda"
                     value={formData.secondaryWoreda?.toString() || ""}
-                    onValueChange={(value) => {
+                    onChange={(value) => {
                       const resolved = resolveSelection(secondaryWoredas, value || null);
                       handleInputChange("secondaryWoreda", resolved.documentId ?? resolved.id);
                     }}
+                    options={secondaryWoredas.map((woreda) => ({
+                      value: woreda.documentId ?? woreda.id.toString(),
+                      label: woreda.name,
+                    }))}
+                    placeholder="Select woreda"
                     disabled={!formData.secondaryZone}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select woreda" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {secondaryWoredas.map((woreda) => (
-                        <SelectItem key={woreda.id} value={woreda.documentId || woreda.id.toString()}>
-                          {woreda.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  />
                 </div>
               </div>
             </CardContent>
@@ -2791,81 +2692,61 @@ export function StudentProfileCompletionForm() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="tertiaryCountry">Country</Label>
-                  <Select
+                  <SearchableSelect
+                    id="tertiaryCountry"
                     value={formData.tertiaryCountry?.toString() || ""}
-                    onValueChange={(value) => handleCountryChange(value || null, 'tertiary')}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select country" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {countries.map((country) => (
-                        <SelectItem key={country.id} value={country.documentId || country.id.toString()}>
-                          {country.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onChange={(value) => handleCountryChange(value || null, "tertiary")}
+                    options={countries.map((country) => ({
+                      value: country.documentId ?? country.id.toString(),
+                      label: country.name,
+                    }))}
+                    placeholder="Select country"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="tertiaryRegion">Region</Label>
-                  <Select
+                  <SearchableSelect
+                    id="tertiaryRegion"
                     value={formData.tertiaryRegion?.toString() || ""}
-                    onValueChange={(value) => handleRegionChange(value || null, 'tertiary')}
+                    onChange={(value) => handleRegionChange(value || null, "tertiary")}
+                    options={tertiaryRegions.map((region) => ({
+                      value: region.documentId ?? region.id.toString(),
+                      label: region.name,
+                    }))}
+                    placeholder="Select region"
                     disabled={!formData.tertiaryCountry}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select region" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {tertiaryRegions.map((region) => (
-                        <SelectItem key={region.id} value={region.documentId || region.id.toString()}>
-                          {region.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="tertiaryZone">Zone</Label>
-                  <Select
+                  <SearchableSelect
+                    id="tertiaryZone"
                     value={formData.tertiaryZone?.toString() || ""}
-                    onValueChange={(value) => handleZoneChange(value || null, 'tertiary')}
+                    onChange={(value) => handleZoneChange(value || null, "tertiary")}
+                    options={tertiaryZones.map((zone) => ({
+                      value: zone.documentId ?? zone.id.toString(),
+                      label: zone.name,
+                    }))}
+                    placeholder="Select zone"
                     disabled={!formData.tertiaryRegion}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select zone" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {tertiaryZones.map((zone) => (
-                        <SelectItem key={zone.id} value={zone.documentId || zone.id.toString()}>
-                          {zone.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="tertiaryWoreda">Woreda</Label>
-                  <Select
+                  <SearchableSelect
+                    id="tertiaryWoreda"
                     value={formData.tertiaryWoreda?.toString() || ""}
-                    onValueChange={(value) => {
+                    onChange={(value) => {
                       const resolved = resolveSelection(tertiaryWoredas, value || null);
                       handleInputChange("tertiaryWoreda", resolved.documentId ?? resolved.id);
                     }}
+                    options={tertiaryWoredas.map((woreda) => ({
+                      value: woreda.documentId ?? woreda.id.toString(),
+                      label: woreda.name,
+                    }))}
+                    placeholder="Select woreda"
                     disabled={!formData.tertiaryZone}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select woreda" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {tertiaryWoredas.map((woreda) => (
-                        <SelectItem key={woreda.id} value={woreda.documentId || woreda.id.toString()}>
-                          {woreda.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  />
                 </div>
               </div>
             </CardContent>
