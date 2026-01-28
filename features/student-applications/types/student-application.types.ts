@@ -46,6 +46,7 @@ export type StudentApplicationFormData = {
   // Page 4: Field of Study
   fieldOfStudy: string;
   preferredProgram: string;
+  preferredProgramOfferingId: number | null;
   
   // Page 5: Payment
   paymentMethod: string;
@@ -53,6 +54,32 @@ export type StudentApplicationFormData = {
   
   // Page 6: Required Docs
   documentsSubmitted: boolean;
+};
+
+export type ProgramOffering = {
+  id: number;
+  documentId?: string;
+  isOpenForApply?: boolean;
+  capacity?: number | null;
+  capacityRemaining?: number | null;
+  academic_calendar?: {
+    id?: number;
+    name?: string;
+    academicYearRange?: string;
+    isActive?: boolean;
+  } | null;
+  program?: {
+    id?: number;
+    name?: string;
+    fullName?: string;
+    level?: string;
+    mode?: string;
+  } | null;
+  batch?: {
+    id?: number;
+    name?: string;
+    code?: string | null;
+  } | null;
 };
 
 // Location types for dropdowns
