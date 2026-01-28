@@ -15,7 +15,8 @@ import type { ProgramOffering } from "../types/student-application.types";
 
 export function StudentApplicationForm() {
   const [programOfferings, setProgramOfferings] = useState<ProgramOffering[]>([]);
-  const [selectedOfferingId, setSelectedOfferingId] = useState<number | null>(null);
+  // Store the Strapi documentId (preferred in Strapi v5) or fallback id as string
+  const [selectedOfferingId, setSelectedOfferingId] = useState<string | null>(null);
   const [isLoadingPrograms, setIsLoadingPrograms] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -82,6 +83,7 @@ export function StudentApplicationForm() {
         },
         body: JSON.stringify({
           data: {
+            // Send the Strapi documentId string when available (preferred in Strapi v5)
             programOfferingId: selectedOfferingId,
             applicationStatus: "Submitted",
           },
@@ -131,8 +133,8 @@ export function StudentApplicationForm() {
           Preferred Program <span className="text-destructive">*</span>
         </Label>
         <Select
-          value={selectedOfferingId ? String(selectedOfferingId) : ""}
-          onValueChange={(value) => setSelectedOfferingId(Number(value))}
+          value={selectedOfferingId ?? ""}
+          onValueChange={(value) => setSelectedOfferingId(value)}
         >
           <SelectTrigger id="preferredProgramOffering" className="w-full">
             <SelectValue
@@ -146,7 +148,10 @@ export function StudentApplicationForm() {
               </SelectItem>
             )}
             {programOfferings.map((offering) => (
-              <SelectItem key={offering.id} value={String(offering.id)}>
+              <SelectItem
+                key={offering.id}
+                value={offering.documentId ?? String(offering.id)}
+              >
                 {getProgramOfferingLabel(offering)}
               </SelectItem>
             ))}
