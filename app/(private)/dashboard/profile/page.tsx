@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 
 import { getSession } from "@/lib/auth/session";
-import { getStrapiURL } from "@/lib/strapi/client";
+import { getStudentProfile } from "@/features/student-profiles/services/student-profile.service";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,48 +27,7 @@ function getInitials(firstName: string, email: string): string {
   return email.substring(0, 2).toUpperCase();
 }
 
-async function getStudentProfile(userId: string) {
-  try {
-    const strapiUrl = getStrapiURL();
-    if (!strapiUrl) {
-      return null;
-    }
-
-    const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
-    
-    // Fetch profile with all nested data, filtered by user ID
-    const response = await fetch(
-      `${strapiUrl}/api/student-profiles?populate[residentialAddress][populate]=*&populate[birthAddress][populate]=*&populate[personToBeContacted][populate]=*&populate[primary_education][populate]=*&populate[secondary_education][populate]=*&populate[tertiary_educations][populate]=*&populate[professional_experiences][populate]=*&populate[research_engagements][populate]=*&filters[user][id][$eq]=${userId}`,
-      {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          ...(apiToken && { Authorization: `Bearer ${apiToken}` }),
-        },
-        cache: "no-store",
-      }
-    );
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const result = await response.json();
-    
-    // Return the first profile (should only be one due to filter)
-    if (result?.data) {
-      if (Array.isArray(result.data)) {
-        return result.data[0] || null;
-      }
-      return result.data;
-    }
-    
-    return null;
-  } catch (error) {
-    console.error("Error fetching student profile:", error);
-    return null;
-  }
-}
+// getStudentProfile is now imported from the service
 
 function getStatusBadge(status: string) {
   switch (status?.toLowerCase()) {
@@ -116,7 +75,7 @@ export default async function ProfilePage() {
   };
 
   // Fetch student profile filtered by logged-in user
-  const studentProfile = await getStudentProfile(session.userId);
+  const studentProfile = await getStudentProfile();
 
   const hasApplication = !!studentProfile;
   const isProfileComplete = studentProfile?.isProfileComplete === true;
@@ -146,7 +105,7 @@ export default async function ProfilePage() {
                     ? `${studentProfile.firstNameEn} ${studentProfile.fatherNameEn || ""} ${studentProfile.grandFatherNameEn || ""}`.trim()
                     : user.name}
                 </h1>
-                {hasApplication && getStatusBadge(studentProfile.applicationStatus)}
+                {hasApplication && getStatusBadge(typeof studentProfile.applicationStatus === "string" ? studentProfile.applicationStatus : "")}
               </div>
               <p className="text-sm text-muted-foreground">{user.email}</p>
             </div>
@@ -212,22 +171,22 @@ export default async function ProfilePage() {
                           <div className="flex-1 space-y-1">
                             <p className="text-sm text-muted-foreground">Full Name (English)</p>
                             <p className="text-sm font-medium">
-                              {studentProfile.firstNameEn || "Not provided"}
-                              {studentProfile.fatherNameEn && ` ${studentProfile.fatherNameEn}`}
-                              {studentProfile.grandFatherNameEn && ` ${studentProfile.grandFatherNameEn}`}
+                              {String(studentProfile.firstNameEn || "Not provided")}
+                              {typeof studentProfile.fatherNameEn === "string" && studentProfile.fatherNameEn && ` ${studentProfile.fatherNameEn}`}
+                              {typeof studentProfile.grandFatherNameEn === "string" && studentProfile.grandFatherNameEn && ` ${studentProfile.grandFatherNameEn}`}
                             </p>
                           </div>
                         </div>
 
-                        {studentProfile.firstNameAm && (
+                        {typeof studentProfile.firstNameAm === "string" && studentProfile.firstNameAm && (
                           <div className="flex items-start gap-3">
                             <User className="h-5 w-5 text-muted-foreground mt-0.5" />
                             <div className="flex-1 space-y-1">
                               <p className="text-sm text-muted-foreground">Full Name (Amharic)</p>
                               <p className="text-sm font-medium">
                                 {studentProfile.firstNameAm}
-                                {studentProfile.fatherNameAm && ` ${studentProfile.fatherNameAm}`}
-                                {studentProfile.grandFatherNameAm && ` ${studentProfile.grandFatherNameAm}`}
+                                {typeof studentProfile.fatherNameAm === "string" && studentProfile.fatherNameAm && ` ${studentProfile.fatherNameAm}`}
+                                {typeof studentProfile.grandFatherNameAm === "string" && studentProfile.grandFatherNameAm && ` ${studentProfile.grandFatherNameAm}`}
                               </p>
                             </div>
                           </div>
@@ -454,7 +413,7 @@ export default async function ProfilePage() {
                         <div className="flex-1 space-y-1">
                           <p className="text-sm text-muted-foreground">Status</p>
                           <div>
-                            {getStatusBadge(studentProfile.applicationStatus)}
+                            {getStatusBadge(studentProfile.applicationStatus || "")}
                           </div>
                         </div>
                       </div>
@@ -477,7 +436,7 @@ export default async function ProfilePage() {
                             <div className="flex-1 space-y-1">
                               <p className="text-sm text-muted-foreground">Full Name</p>
                               <p className="text-sm font-medium">
-                                {studentProfile.personToBeContacted.fullName}
+                                {studentProfile.personToBeContacted.fullName || "Not provided"}
                               </p>
                             </div>
                           </div>
@@ -487,7 +446,7 @@ export default async function ProfilePage() {
                             <div className="flex-1 space-y-1">
                               <p className="text-sm text-muted-foreground">Phone Number</p>
                               <p className="text-sm font-medium">
-                                {studentProfile.personToBeContacted.phoneNumber || "Not provided"}
+                                {String(studentProfile.personToBeContacted.phoneNumber || "Not provided")}
                               </p>
                             </div>
                           </div>
@@ -526,7 +485,7 @@ export default async function ProfilePage() {
                 )}
 
                 {/* Education Information */}
-                {(studentProfile.primary_education || studentProfile.secondary_education || studentProfile.tertiary_educations?.length > 0) && (
+                {(studentProfile.primary_education || studentProfile.secondary_education || (studentProfile.tertiary_educations && studentProfile.tertiary_educations.length > 0)) && (
                   <Card>
                     <CardHeader>
                       <CardTitle>Education Information</CardTitle>
@@ -634,17 +593,7 @@ export default async function ProfilePage() {
                           <div>
                             <h4 className="font-semibold mb-3">Tertiary Education</h4>
                             <div className="space-y-4">
-                              {studentProfile.tertiary_educations.map((tertiary: {
-                                institution?: string;
-                                fieldOfStudy?: string;
-                                gpaScore?: number;
-                                yearStarted?: number;
-                                yearCompleted?: number;
-                                country?: { name?: string };
-                                region?: { name?: string };
-                                zone?: { name?: string };
-                                woreda?: { name?: string };
-                              }, index: number) => (
+                              {studentProfile.tertiary_educations?.filter((t): t is NonNullable<typeof t> => t !== null).map((tertiary, index: number) => (
                                 <div key={index} className="border-b pb-4 last:border-0 last:pb-0">
                                   <div className="grid gap-4 md:grid-cols-2">
                                     <div className="flex items-start gap-3">
@@ -719,11 +668,7 @@ export default async function ProfilePage() {
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-4">
-                        {studentProfile.professional_experiences.map((experience: {
-                          organizationName?: string;
-                          numberOfYears?: number;
-                          positionDescription?: string;
-                        }, index: number) => (
+                        {studentProfile.professional_experiences?.map((experience, index: number) => (
                           <div key={index} className="border-b pb-4 last:border-0 last:pb-0">
                             <div className="grid gap-4 md:grid-cols-2">
                               <div className="flex items-start gap-3">
@@ -731,7 +676,7 @@ export default async function ProfilePage() {
                                 <div className="flex-1 space-y-1">
                                   <p className="text-sm text-muted-foreground">Organization</p>
                                   <p className="text-sm font-medium">
-                                    {experience.organizationName || "Not provided"}
+                                    {String(experience.organizationName || "Not provided")}
                                   </p>
                                 </div>
                               </div>
@@ -770,16 +715,14 @@ export default async function ProfilePage() {
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-4">
-                        {studentProfile.research_engagements.map((research: {
-                          description?: string;
-                        }, index: number) => (
+                        {studentProfile.research_engagements?.map((research, index: number) => (
                           <div key={index} className="border-b pb-4 last:border-0 last:pb-0">
                             <div className="flex items-start gap-3">
                               <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
                               <div className="flex-1 space-y-1">
                                 <p className="text-sm text-muted-foreground">Description</p>
                                 <p className="text-sm font-medium">
-                                  {research.description || "Not provided"}
+                                    {String(research.description || "Not provided")}
                                 </p>
                               </div>
                             </div>

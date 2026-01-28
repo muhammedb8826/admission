@@ -1,6 +1,6 @@
 import { getSession } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
-import { StudentProfileCompletionForm } from "@/components/student-profile-completion-form";
+import { StudentProfileCompletionForm } from "@/features/student-profiles";
 
 export default async function CompleteProfilePage() {
   const session = await getSession();

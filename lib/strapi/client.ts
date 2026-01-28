@@ -161,3 +161,120 @@ function toSearchParams(params: Record<string, QueryValue | undefined>) {
   return searchParams.toString();
 }
 
+/**
+ * Fetch from internal Next.js API routes (server-side only)
+ * Automatically handles base URL construction and cookie forwarding for session auth
+ */
+type InternalApiFetchOptions = RequestInit & {
+  params?: Record<string, QueryValue | undefined>;
+  /**
+   * Next.js specific cache options
+   */
+  next?: { revalidate?: number | false; tags?: string[] };
+  /**
+   * Headers object from next/headers (for cookie forwarding)
+   */
+  requestHeaders?: Headers;
+};
+
+export async function internalApiFetch<TResponse>(
+  path: string,
+  { params, headers, requestHeaders, next, ...init }: InternalApiFetchOptions = {}
+): Promise<TResponse> {
+  try {
+    // Get base URL from headers (server component) or environment
+    let baseUrl: string;
+    if (requestHeaders) {
+      const host = requestHeaders.get("host") || "localhost:3000";
+      const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
+      baseUrl = `${protocol}://${host}`;
+    } else {
+      // Fallback to environment variable or localhost
+      baseUrl = process.env.NEXT_PUBLIC_APP_URL 
+        || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+    }
+
+    // Construct the path
+    const apiPath = path.startsWith("/") ? path : `/${path}`;
+    
+    // Build the full URL
+    const url = new URL(apiPath, baseUrl);
+
+    if (params) {
+      const searchParams = toSearchParams(params);
+      if (searchParams) {
+        url.search = searchParams;
+      }
+    }
+
+    // Build headers object - convert Headers to plain object if needed
+    const headerEntries: Record<string, string> = {};
+    if (headers) {
+      if (headers instanceof Headers) {
+        headers.forEach((value, key) => {
+          headerEntries[key] = value;
+        });
+      } else if (Array.isArray(headers)) {
+        headers.forEach(([key, value]) => {
+          headerEntries[key] = value;
+        });
+      } else {
+        Object.assign(headerEntries, headers);
+      }
+    }
+    
+    headerEntries["Content-Type"] = "application/json";
+    
+    // Forward cookies for session authentication
+    if (requestHeaders) {
+      const cookie = requestHeaders.get("cookie");
+      if (cookie) {
+        headerEntries["Cookie"] = cookie;
+      }
+    }
+
+    const fullUrl = url.toString();
+    
+    // Build fetch options
+    const fetchOptions: RequestInit & { next?: InternalApiFetchOptions['next'] } = {
+      ...init,
+      headers: headerEntries,
+    };
+    
+    // Add Next.js specific next option if provided
+    if (next) {
+      fetchOptions.next = next;
+    }
+
+    const response = await fetch(fullUrl, fetchOptions);
+
+    if (!response.ok) {
+      const errorBody = await safeReadJson(response);
+      throw new Error(
+        `Internal API request failed: ${response.status} ${response.statusText} - URL: ${fullUrl}${
+          errorBody ? ` - ${JSON.stringify(errorBody)}` : ""
+        }`
+      );
+    }
+
+    return response.json();
+  } catch (error) {
+    // Log error but return null to allow graceful handling
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorDetails = {
+      path,
+      error: errorMessage,
+    };
+    
+    // Only log in development to avoid cluttering production logs
+    if (process.env.NODE_ENV === "development") {
+      console.warn(`Failed to fetch from internal API:`, errorDetails);
+      if (error instanceof Error && error.stack) {
+        console.warn("Error stack:", error.stack);
+      }
+    }
+    
+    throw error; // Re-throw to allow caller to handle
+  }
+}
+

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { getStrapiURL } from "@/lib/strapi/client";
-import { StudentApplicationForm } from "@/components/student-application-form";
+import { StudentApplicationForm } from "@/features/student-applications";
 
 async function getStudentProfile(email: string, userId: string) {
   try {

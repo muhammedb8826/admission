@@ -141,6 +141,9 @@ export function StudentProfileCompletionForm() {
   const [personToBeContactedId, setPersonToBeContactedId] = useState<number | null>(null);
   const [primaryEducationId, setPrimaryEducationId] = useState<number | null>(null);
   const [secondaryEducationId, setSecondaryEducationId] = useState<number | null>(null);
+  // Strapi v5 prefers documentId for updates (numeric ids may 404)
+  const [primaryEducationDocumentId, setPrimaryEducationDocumentId] = useState<string | null>(null);
+  const [secondaryEducationDocumentId, setSecondaryEducationDocumentId] = useState<string | null>(null);
   const [nationalIdFileUrl, setNationalIdFileUrl] = useState<string | null>(null);
   const [isUploadingNationalId, setIsUploadingNationalId] = useState(false);
   const [professionalAttachmentUrl, setProfessionalAttachmentUrl] = useState<string | null>(null);
@@ -297,8 +300,14 @@ export function StudentProfileCompletionForm() {
             if (profile.primary_education?.id) {
               setPrimaryEducationId(profile.primary_education.id);
             }
+            if (profile.primary_education?.documentId) {
+              setPrimaryEducationDocumentId(profile.primary_education.documentId);
+            }
             if (profile.secondary_education?.id) {
               setSecondaryEducationId(profile.secondary_education.id);
+            }
+            if (profile.secondary_education?.documentId) {
+              setSecondaryEducationDocumentId(profile.secondary_education.documentId);
             }
             
             // Populate form with existing data
@@ -1060,13 +1069,18 @@ export function StudentProfileCompletionForm() {
       // Include education data if on step 2 or if data exists
       // Include component ID if it exists (for updates)
       if (Object.keys(primaryEducation).length > 0) {
-        if (primaryEducationId) {
+        // Prefer documentId for Strapi v5 updates
+        if (primaryEducationDocumentId) {
+          (primaryEducation as EducationData & { documentId?: string }).documentId = primaryEducationDocumentId;
+        } else if (primaryEducationId) {
           primaryEducation.id = primaryEducationId;
         }
         payload.primary_education = primaryEducation;
       }
       if (Object.keys(secondaryEducation).length > 0) {
-        if (secondaryEducationId) {
+        if (secondaryEducationDocumentId) {
+          (secondaryEducation as EducationData & { documentId?: string }).documentId = secondaryEducationDocumentId;
+        } else if (secondaryEducationId) {
           secondaryEducation.id = secondaryEducationId;
         }
         payload.secondary_education = secondaryEducation;
@@ -1200,8 +1214,14 @@ export function StudentProfileCompletionForm() {
                 if (savedProfile.primary_education?.id) {
                   setPrimaryEducationId(savedProfile.primary_education.id);
                 }
+                if (savedProfile.primary_education?.documentId) {
+                  setPrimaryEducationDocumentId(savedProfile.primary_education.documentId);
+                }
                 if (savedProfile.secondary_education?.id) {
                   setSecondaryEducationId(savedProfile.secondary_education.id);
+                }
+                if (savedProfile.secondary_education?.documentId) {
+                  setSecondaryEducationDocumentId(savedProfile.secondary_education.documentId);
                 }
                 // Note: tertiary_educations, professional_experiences, and research_engagements
                 // are relations (oneToMany), so we don't track individual IDs for them
@@ -1258,8 +1278,14 @@ export function StudentProfileCompletionForm() {
               if (savedProfile.primary_education?.id) {
                 setPrimaryEducationId(savedProfile.primary_education.id);
               }
+              if (savedProfile.primary_education?.documentId) {
+                setPrimaryEducationDocumentId(savedProfile.primary_education.documentId);
+              }
               if (savedProfile.secondary_education?.id) {
                 setSecondaryEducationId(savedProfile.secondary_education.id);
+              }
+              if (savedProfile.secondary_education?.documentId) {
+                setSecondaryEducationDocumentId(savedProfile.secondary_education.documentId);
               }
             }
             console.log("Progress saved successfully after ID update!");
@@ -1324,8 +1350,14 @@ export function StudentProfileCompletionForm() {
                     if (savedProfile.primary_education?.id && !primaryEducationId) {
                       setPrimaryEducationId(savedProfile.primary_education.id);
                     }
+                    if (savedProfile.primary_education?.documentId && !primaryEducationDocumentId) {
+                      setPrimaryEducationDocumentId(savedProfile.primary_education.documentId);
+                    }
                     if (savedProfile.secondary_education?.id && !secondaryEducationId) {
                       setSecondaryEducationId(savedProfile.secondary_education.id);
+                    }
+                    if (savedProfile.secondary_education?.documentId && !secondaryEducationDocumentId) {
+                      setSecondaryEducationDocumentId(savedProfile.secondary_education.documentId);
                     }
                   }
                   console.log("Progress saved successfully after retry!");
@@ -1374,8 +1406,14 @@ export function StudentProfileCompletionForm() {
                     if (savedProfile.primary_education?.id && !primaryEducationId) {
                       setPrimaryEducationId(savedProfile.primary_education.id);
                     }
+                    if (savedProfile.primary_education?.documentId && !primaryEducationDocumentId) {
+                      setPrimaryEducationDocumentId(savedProfile.primary_education.documentId);
+                    }
                     if (savedProfile.secondary_education?.id && !secondaryEducationId) {
                       setSecondaryEducationId(savedProfile.secondary_education.id);
+                    }
+                    if (savedProfile.secondary_education?.documentId && !secondaryEducationDocumentId) {
+                      setSecondaryEducationDocumentId(savedProfile.secondary_education.documentId);
                     }
                   }
                   console.log("Profile created successfully!");
@@ -1434,8 +1472,14 @@ export function StudentProfileCompletionForm() {
         if (savedProfile.primary_education?.id && !primaryEducationId) {
           setPrimaryEducationId(savedProfile.primary_education.id);
         }
+        if (savedProfile.primary_education?.documentId && !primaryEducationDocumentId) {
+          setPrimaryEducationDocumentId(savedProfile.primary_education.documentId);
+        }
         if (savedProfile.secondary_education?.id && !secondaryEducationId) {
           setSecondaryEducationId(savedProfile.secondary_education.id);
+        }
+        if (savedProfile.secondary_education?.documentId && !secondaryEducationDocumentId) {
+          setSecondaryEducationDocumentId(savedProfile.secondary_education.documentId);
         }
       }
 
@@ -1621,13 +1665,17 @@ export function StudentProfileCompletionForm() {
       // Only include education objects if they have at least one field
       // Include component ID if it exists (for updates)
       if (Object.keys(primaryEducation).length > 0) {
-        if (primaryEducationId) {
+        if (primaryEducationDocumentId) {
+          (primaryEducation as EducationData & { documentId?: string }).documentId = primaryEducationDocumentId;
+        } else if (primaryEducationId) {
           primaryEducation.id = primaryEducationId;
         }
         payload.primary_education = primaryEducation;
       }
       if (Object.keys(secondaryEducation).length > 0) {
-        if (secondaryEducationId) {
+        if (secondaryEducationDocumentId) {
+          (secondaryEducation as EducationData & { documentId?: string }).documentId = secondaryEducationDocumentId;
+        } else if (secondaryEducationId) {
           secondaryEducation.id = secondaryEducationId;
         }
         payload.secondary_education = secondaryEducation;

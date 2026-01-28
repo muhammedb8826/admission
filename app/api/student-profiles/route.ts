@@ -179,7 +179,14 @@ const fetchStudentProfileForUser = async ({
   userDocumentId: string | null;
 }): Promise<{ profile: Record<string, unknown> | null; raw: Record<string, unknown> }> => {
   const safeUserPopulate = "populate[user][fields][0]=id&populate[user][fields][1]=documentId";
-  const baseQueryParts = [populateQuery, safeUserPopulate, "pagination[pageSize]=1"].filter(Boolean);
+  // If duplicates exist for a user (historical bug), always pick the newest one deterministically.
+  const baseQueryParts = [
+    populateQuery,
+    safeUserPopulate,
+    "sort[0]=updatedAt:desc",
+    "sort[1]=createdAt:desc",
+    "pagination[pageSize]=1",
+  ].filter(Boolean);
   const baseQuery = baseQueryParts.join("&");
 
   const candidates: string[] = [];
@@ -930,9 +937,20 @@ export async function PUT(request: NextRequest) {
     const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
     const authToken = userJwt || apiToken;
     const { userIdNumber, userDocumentId } = getUserIdentifiers(session);
+
+    // IMPORTANT: we must fetch currently-linked relations too, otherwise repeated saves
+    // will recreate or fail to update related entries (because the client often doesn't send IDs/documentIds)
     const existing = await fetchStudentProfileForUser({
       strapiUrl,
-      populateQuery: "",
+      populateQuery: [
+        // one-to-one educations
+        "populate[primary_education][populate]=*",
+        "populate[secondary_education][populate]=*",
+        // one-to-many collections
+        "populate[tertiary_educations][populate]=*",
+        "populate[professional_experiences][populate]=*",
+        "populate[research_engagements][populate]=*",
+      ].join("&"),
       userJwt,
       apiToken,
       userIdNumber,
@@ -952,6 +970,23 @@ export async function PUT(request: NextRequest) {
     const actualDocumentId = (userProfile as { documentId?: string })?.documentId;
     const actualProfileId = userProfile?.id;
     const finalIdentifier = actualDocumentId || actualProfileId;
+
+    // Existing linked relations (used to prevent duplicates / lost updates on repeated saves)
+    const existingPrimary = (userProfile as { primary_education?: unknown })?.primary_education as
+      | { id?: unknown; documentId?: unknown }
+      | undefined;
+    const existingSecondary = (userProfile as { secondary_education?: unknown })?.secondary_education as
+      | { id?: unknown; documentId?: unknown }
+      | undefined;
+    const existingTertiary = Array.isArray((userProfile as { tertiary_educations?: unknown })?.tertiary_educations)
+      ? (((userProfile as { tertiary_educations?: unknown }).tertiary_educations as unknown[]) ?? [])
+      : [];
+    const existingProfessional = Array.isArray((userProfile as { professional_experiences?: unknown })?.professional_experiences)
+      ? (((userProfile as { professional_experiences?: unknown }).professional_experiences as unknown[]) ?? [])
+      : [];
+    const existingResearch = Array.isArray((userProfile as { research_engagements?: unknown })?.research_engagements)
+      ? (((userProfile as { research_engagements?: unknown }).research_engagements as unknown[]) ?? [])
+      : [];
 
     console.log("Profile verification successful:", {
       actualId: actualProfileId,
@@ -1027,6 +1062,31 @@ export async function PUT(request: NextRequest) {
       return cleaned;
     };
 
+    const resolveDocumentIdByNumericId = async (
+      collection: string,
+      numericId: number
+    ): Promise<string | null> => {
+      // Strapi v5 endpoints use documentId; numeric id updates often 404.
+      // Try resolving documentId via filtered collection query.
+      try {
+        const url = `${strapiUrl}/api/${collection}?filters[id][$eq]=${numericId}&fields[0]=documentId&pagination[pageSize]=1`;
+        const res = await fetch(url, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            ...(authToken && { Authorization: `Bearer ${authToken}` }),
+          },
+          cache: "no-store",
+        });
+        if (!res.ok) return null;
+        const json = await res.json().catch(() => ({}));
+        const docId = (json as { data?: Array<{ documentId?: unknown }> })?.data?.[0]?.documentId;
+        return typeof docId === "string" && docId.trim() !== "" ? docId : null;
+      } catch {
+        return null;
+      }
+    };
+
 
     if (updateData.residentialAddress && typeof updateData.residentialAddress === "object") {
       const cleaned = await normalizeAddressComponent(
@@ -1077,46 +1137,116 @@ export async function PUT(request: NextRequest) {
     // Handle primary_education relation
     if (updateData.primary_education && typeof updateData.primary_education === 'object') {
       const primaryData = updateData.primary_education as Record<string, unknown>;
-      const existingId = primaryData.id as number | undefined;
+
+      // Strapi v5 expects documentId for single-type URLs. Numeric ids here commonly 404.
+      // Prefer: payload.documentId -> existingLinked.documentId -> payload.id -> existingLinked.id
+      const payloadDocId =
+        typeof (primaryData as { documentId?: unknown })?.documentId === "string"
+          ? ((primaryData as { documentId: string }).documentId as string)
+          : null;
+      const existingDocId =
+        typeof existingPrimary?.documentId === "string" ? (existingPrimary.documentId as string) : null;
+      const payloadId = extractRelationIdentifier(primaryData.id);
+      const existingId = extractRelationIdentifier(existingPrimary?.id);
+      const existingIdentifier = payloadDocId ?? existingDocId ?? payloadId ?? existingId;
       
       // Clean the education data (remove id, clean location relations)
       const cleanedPrimary = cleanComponentRelations(primaryData);
       if (cleanedPrimary && typeof cleanedPrimary === 'object') {
         delete (cleanedPrimary as Record<string, unknown>).id;
+        delete (cleanedPrimary as Record<string, unknown>).documentId;
       }
       
       // Create or update primary education
-      if (existingId) {
-        // Update existing
-        const updateResponse = await fetch(`${strapiUrl}/api/primary-educations/${existingId}`, {
+      if (existingIdentifier) {
+        // Update existing (Strapi v5: prefer documentId in URL; numeric id may work but is less reliable)
+        const updateUrl = `${strapiUrl}/api/primary-educations/${existingIdentifier}`;
+        const updatePayload = cleanedPrimary && typeof cleanedPrimary === "object"
+          ? { ...(cleanedPrimary as Record<string, unknown>) }
+          : cleanedPrimary;
+        if (updatePayload && typeof updatePayload === "object") {
+          delete (updatePayload as Record<string, unknown>).id;
+          delete (updatePayload as Record<string, unknown>).documentId;
+        }
+        const updateResponse = await fetch(updateUrl, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
             ...(authToken && { Authorization: `Bearer ${authToken}` }),
           },
-          body: JSON.stringify({ data: cleanedPrimary }),
+          body: JSON.stringify({ data: updatePayload }),
         });
         
+        const updateResult = await updateResponse.json().catch(() => ({}));
         if (updateResponse.ok) {
-          const updateResult = await updateResponse.json().catch(() => ({}));
-          primaryEducationId = updateResult?.data?.id || existingId;
-          primaryEducationDocumentId = updateResult?.data?.documentId || null;
+          primaryEducationId = updateResult?.data?.id || (typeof existingIdentifier === "number" ? existingIdentifier : null);
+          primaryEducationDocumentId = updateResult?.data?.documentId || (typeof existingIdentifier === "string" ? existingIdentifier : null);
+        } else {
+          // If we tried numeric id (or got a stale numeric id) and Strapi v5 404s, resolve documentId and retry once.
+          if (updateResponse.status === 404 && typeof existingIdentifier === "number") {
+            const resolvedDocId = await resolveDocumentIdByNumericId("primary-educations", existingIdentifier);
+            if (resolvedDocId) {
+              const retryUrl = `${strapiUrl}/api/primary-educations/${resolvedDocId}`;
+              const retryPayload = updatePayload;
+              const retryRes = await fetch(retryUrl, {
+                method: "PUT",
+                headers: {
+                  "Content-Type": "application/json",
+                  ...(authToken && { Authorization: `Bearer ${authToken}` }),
+                },
+                body: JSON.stringify({ data: retryPayload }),
+              });
+              const retryJson = await retryRes.json().catch(() => ({}));
+              if (retryRes.ok) {
+                primaryEducationId = retryJson?.data?.id || null;
+                primaryEducationDocumentId = retryJson?.data?.documentId || resolvedDocId;
+              } else {
+                console.error("Failed to update primary education (retry with resolved documentId):", {
+                  status: retryRes.status,
+                  retryUrl,
+                  error: retryJson,
+                  resolvedDocId,
+                });
+              }
+            }
+          }
+          console.error("Failed to update primary education:", {
+            status: updateResponse.status,
+            updateUrl,
+            error: updateResult,
+            existingIdentifier,
+            cleanedPrimary,
+          });
         }
       } else {
         // Create new
+        const createPayload = cleanedPrimary && typeof cleanedPrimary === "object"
+          ? { ...(cleanedPrimary as Record<string, unknown>) }
+          : cleanedPrimary;
+        if (createPayload && typeof createPayload === "object") {
+          delete (createPayload as Record<string, unknown>).id;
+          delete (createPayload as Record<string, unknown>).documentId;
+        }
         const createResponse = await fetch(`${strapiUrl}/api/primary-educations`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             ...(authToken && { Authorization: `Bearer ${authToken}` }),
           },
-          body: JSON.stringify({ data: cleanedPrimary }),
+          body: JSON.stringify({ data: createPayload }),
         });
         
         if (createResponse.ok) {
           const createResult = await createResponse.json().catch(() => ({}));
           primaryEducationId = createResult?.data?.id;
           primaryEducationDocumentId = createResult?.data?.documentId || null;
+        } else {
+          const createResult = await createResponse.json().catch(() => ({}));
+          console.error("Failed to create primary education:", {
+            status: createResponse.status,
+            error: createResult,
+            cleanedPrimary,
+          });
         }
       }
       
@@ -1131,44 +1261,112 @@ export async function PUT(request: NextRequest) {
     // Handle secondary_education relation
     if (updateData.secondary_education && typeof updateData.secondary_education === 'object') {
       const secondaryData = updateData.secondary_education as Record<string, unknown>;
-      const existingId = secondaryData.id as number | undefined;
+
+      const payloadDocId =
+        typeof (secondaryData as { documentId?: unknown })?.documentId === "string"
+          ? ((secondaryData as { documentId: string }).documentId as string)
+          : null;
+      const existingDocId =
+        typeof existingSecondary?.documentId === "string"
+          ? (existingSecondary.documentId as string)
+          : null;
+      const payloadId = extractRelationIdentifier(secondaryData.id);
+      const existingId = extractRelationIdentifier(existingSecondary?.id);
+      const existingIdentifier = payloadDocId ?? existingDocId ?? payloadId ?? existingId;
       
       // Clean the education data
       const cleanedSecondary = cleanComponentRelations(secondaryData);
       if (cleanedSecondary && typeof cleanedSecondary === 'object') {
         delete (cleanedSecondary as Record<string, unknown>).id;
+        delete (cleanedSecondary as Record<string, unknown>).documentId;
       }
       
       // Create or update secondary education
-      if (existingId) {
-        const updateResponse = await fetch(`${strapiUrl}/api/secondary-educations/${existingId}`, {
+      if (existingIdentifier) {
+        const updateUrl = `${strapiUrl}/api/secondary-educations/${existingIdentifier}`;
+        const updatePayload = cleanedSecondary && typeof cleanedSecondary === "object"
+          ? { ...(cleanedSecondary as Record<string, unknown>) }
+          : cleanedSecondary;
+        if (updatePayload && typeof updatePayload === "object") {
+          delete (updatePayload as Record<string, unknown>).id;
+          delete (updatePayload as Record<string, unknown>).documentId;
+        }
+        const updateResponse = await fetch(updateUrl, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
             ...(authToken && { Authorization: `Bearer ${authToken}` }),
           },
-          body: JSON.stringify({ data: cleanedSecondary }),
+          body: JSON.stringify({ data: updatePayload }),
         });
         
+        const updateResult = await updateResponse.json().catch(() => ({}));
         if (updateResponse.ok) {
-          const updateResult = await updateResponse.json().catch(() => ({}));
-          secondaryEducationId = updateResult?.data?.id || existingId;
-          secondaryEducationDocumentId = updateResult?.data?.documentId || null;
+          secondaryEducationId = updateResult?.data?.id || (typeof existingIdentifier === "number" ? existingIdentifier : null);
+          secondaryEducationDocumentId = updateResult?.data?.documentId || (typeof existingIdentifier === "string" ? existingIdentifier : null);
+        } else {
+          if (updateResponse.status === 404 && typeof existingIdentifier === "number") {
+            const resolvedDocId = await resolveDocumentIdByNumericId("secondary-educations", existingIdentifier);
+            if (resolvedDocId) {
+              const retryUrl = `${strapiUrl}/api/secondary-educations/${resolvedDocId}`;
+              const retryPayload = updatePayload;
+              const retryRes = await fetch(retryUrl, {
+                method: "PUT",
+                headers: {
+                  "Content-Type": "application/json",
+                  ...(authToken && { Authorization: `Bearer ${authToken}` }),
+                },
+                body: JSON.stringify({ data: retryPayload }),
+              });
+              const retryJson = await retryRes.json().catch(() => ({}));
+              if (retryRes.ok) {
+                secondaryEducationId = retryJson?.data?.id || null;
+                secondaryEducationDocumentId = retryJson?.data?.documentId || resolvedDocId;
+              } else {
+                console.error("Failed to update secondary education (retry with resolved documentId):", {
+                  status: retryRes.status,
+                  retryUrl,
+                  error: retryJson,
+                  resolvedDocId,
+                });
+              }
+            }
+          }
+          console.error("Failed to update secondary education:", {
+            status: updateResponse.status,
+            updateUrl,
+            error: updateResult,
+            existingIdentifier,
+            cleanedSecondary,
+          });
         }
       } else {
+        const createPayload = cleanedSecondary && typeof cleanedSecondary === "object"
+          ? { ...(cleanedSecondary as Record<string, unknown>) }
+          : cleanedSecondary;
+        if (createPayload && typeof createPayload === "object") {
+          delete (createPayload as Record<string, unknown>).id;
+          delete (createPayload as Record<string, unknown>).documentId;
+        }
         const createResponse = await fetch(`${strapiUrl}/api/secondary-educations`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             ...(authToken && { Authorization: `Bearer ${authToken}` }),
           },
-          body: JSON.stringify({ data: cleanedSecondary }),
+          body: JSON.stringify({ data: createPayload }),
         });
         
+        const createResult = await createResponse.json().catch(() => ({}));
         if (createResponse.ok) {
-          const createResult = await createResponse.json().catch(() => ({}));
           secondaryEducationId = createResult?.data?.id;
           secondaryEducationDocumentId = createResult?.data?.documentId || null;
+        } else {
+          console.error("Failed to create secondary education:", {
+            status: createResponse.status,
+            error: createResult,
+            cleanedSecondary,
+          });
         }
       }
       
@@ -1190,40 +1388,53 @@ export async function PUT(request: NextRequest) {
         })),
       });
       
+      let tertiaryIndex = 0;
       for (const tertiaryData of updateData.tertiary_educations) {
         if (tertiaryData && typeof tertiaryData === 'object') {
           const tertiary = tertiaryData as Record<string, unknown>;
-          const existingId = tertiary.id as number | undefined;
+          const incomingIdentifier = extractRelationIdentifier((tertiary as { documentId?: unknown })?.documentId ?? tertiary.id);
+          const fallbackExisting = existingTertiary[tertiaryIndex] as { id?: unknown; documentId?: unknown } | undefined;
+          const fallbackIdentifier = extractRelationIdentifier(fallbackExisting?.documentId ?? fallbackExisting?.id);
+          const existingIdentifier = incomingIdentifier ?? fallbackIdentifier;
           
           // Clean the education data
           const cleanedTertiary = cleanComponentRelations(tertiary);
           if (cleanedTertiary && typeof cleanedTertiary === 'object') {
             delete (cleanedTertiary as Record<string, unknown>).id;
+            delete (cleanedTertiary as Record<string, unknown>).documentId;
           }
           
           console.log("Tertiary education data:", {
-            existingId,
+            existingIdentifier,
             cleanedData: cleanedTertiary,
-            url: existingId 
-              ? `${strapiUrl}/api/tertiar-educations/${existingId}`
+            url: existingIdentifier
+              ? `${strapiUrl}/api/tertiar-educations/${existingIdentifier}`
               : `${strapiUrl}/api/tertiar-educations`,
           });
           
           // Create or update tertiary education
-          if (existingId) {
-            const updateResponse = await fetch(`${strapiUrl}/api/tertiar-educations/${existingId}`, {
+          if (existingIdentifier) {
+            const updatePayload = cleanedTertiary && typeof cleanedTertiary === "object"
+              ? { ...(cleanedTertiary as Record<string, unknown>) }
+              : cleanedTertiary;
+            if (updatePayload && typeof updatePayload === "object") {
+              delete (updatePayload as Record<string, unknown>).id;
+              delete (updatePayload as Record<string, unknown>).documentId;
+            }
+            const updateResponse = await fetch(`${strapiUrl}/api/tertiar-educations/${existingIdentifier}`, {
               method: "PUT",
               headers: {
                 "Content-Type": "application/json",
                 ...(authToken && { Authorization: `Bearer ${authToken}` }),
               },
-              body: JSON.stringify({ data: cleanedTertiary }),
+              body: JSON.stringify({ data: updatePayload }),
             });
             
             const updateResult = await updateResponse.json().catch(() => ({}));
             
             if (updateResponse.ok) {
-              const tertiaryId = updateResult?.data?.documentId || updateResult?.data?.id || existingId;
+              const tertiaryId =
+                updateResult?.data?.documentId || updateResult?.data?.id || existingIdentifier;
               if (tertiaryId) {
                 tertiaryEducationIdentifiers.push(tertiaryId);
                 console.log("Tertiary education updated successfully:", tertiaryId);
@@ -1232,19 +1443,26 @@ export async function PUT(request: NextRequest) {
               console.error("Failed to update tertiary education:", {
                 status: updateResponse.status,
                 error: updateResult,
-                existingId,
-                url: `${strapiUrl}/api/tertiar-educations/${existingId}`,
+                existingIdentifier,
+                url: `${strapiUrl}/api/tertiar-educations/${existingIdentifier}`,
               });
             }
           } else {
             // Use the correct endpoint name: tertiar-educations (note the spelling)
+            const createPayload = cleanedTertiary && typeof cleanedTertiary === "object"
+              ? { ...(cleanedTertiary as Record<string, unknown>) }
+              : cleanedTertiary;
+            if (createPayload && typeof createPayload === "object") {
+              delete (createPayload as Record<string, unknown>).id;
+              delete (createPayload as Record<string, unknown>).documentId;
+            }
             const createResponse = await fetch(`${strapiUrl}/api/tertiar-educations`, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
                 ...(authToken && { Authorization: `Bearer ${authToken}` }),
               },
-              body: JSON.stringify({ data: cleanedTertiary }),
+              body: JSON.stringify({ data: createPayload }),
             });
             
             const createResult = await createResponse.json().catch(() => ({}));
@@ -1267,6 +1485,7 @@ export async function PUT(request: NextRequest) {
             }
           }
         }
+        tertiaryIndex += 1;
       }
       
       console.log("Tertiary education IDs collected:", tertiaryEducationIdentifiers);
@@ -1288,28 +1507,32 @@ export async function PUT(request: NextRequest) {
         count: updateData.professional_experiences.length,
       });
       
+      let professionalIndex = 0;
       for (const professionalData of updateData.professional_experiences) {
         if (professionalData && typeof professionalData === 'object') {
           const professional = professionalData as Record<string, unknown>;
-          const existingId = professional.id as number | undefined;
+          const incomingIdentifier = extractRelationIdentifier((professional as { documentId?: unknown })?.documentId ?? professional.id);
+          const fallbackExisting = existingProfessional[professionalIndex] as { id?: unknown; documentId?: unknown } | undefined;
+          const fallbackIdentifier = extractRelationIdentifier(fallbackExisting?.documentId ?? fallbackExisting?.id);
+          const existingIdentifier = incomingIdentifier ?? fallbackIdentifier;
           
           // Remove id from data
           const cleanedProfessional = { ...professional };
           delete cleanedProfessional.id;
           
           console.log("Professional experience data:", {
-            existingId,
+            existingIdentifier,
             cleanedData: cleanedProfessional,
             hasAttachments: !!cleanedProfessional.attachments,
             attachmentsValue: cleanedProfessional.attachments,
-            url: existingId 
-              ? `${strapiUrl}/api/professional-experiences/${existingId}`
+            url: existingIdentifier
+              ? `${strapiUrl}/api/professional-experiences/${existingIdentifier}`
               : `${strapiUrl}/api/professional-experiences`,
           });
           
           // Create or update professional experience
-          if (existingId) {
-            const updateResponse = await fetch(`${strapiUrl}/api/professional-experiences/${existingId}`, {
+          if (existingIdentifier) {
+            const updateResponse = await fetch(`${strapiUrl}/api/professional-experiences/${existingIdentifier}`, {
               method: "PUT",
               headers: {
                 "Content-Type": "application/json",
@@ -1322,7 +1545,7 @@ export async function PUT(request: NextRequest) {
             
             if (updateResponse.ok) {
               const professionalId =
-                updateResult?.data?.documentId || updateResult?.data?.id || existingId;
+                updateResult?.data?.documentId || updateResult?.data?.id || existingIdentifier;
               if (professionalId) {
                 professionalExperienceIdentifiers.push(professionalId);
                 console.log("Professional experience updated successfully:", professionalId);
@@ -1331,7 +1554,7 @@ export async function PUT(request: NextRequest) {
               console.error("Failed to update professional experience:", {
                 status: updateResponse.status,
                 error: updateResult,
-                existingId,
+                existingIdentifier,
               });
             }
           } else {
@@ -1363,6 +1586,7 @@ export async function PUT(request: NextRequest) {
             }
           }
         }
+        professionalIndex += 1;
       }
       
       // Replace with relation format (oneToMany uses set)
@@ -1382,28 +1606,32 @@ export async function PUT(request: NextRequest) {
         count: updateData.research_engagements.length,
       });
       
+      let researchIndex = 0;
       for (const researchData of updateData.research_engagements) {
         if (researchData && typeof researchData === 'object') {
           const research = researchData as Record<string, unknown>;
-          const existingId = research.id as number | undefined;
+          const incomingIdentifier = extractRelationIdentifier((research as { documentId?: unknown })?.documentId ?? research.id);
+          const fallbackExisting = existingResearch[researchIndex] as { id?: unknown; documentId?: unknown } | undefined;
+          const fallbackIdentifier = extractRelationIdentifier(fallbackExisting?.documentId ?? fallbackExisting?.id);
+          const existingIdentifier = incomingIdentifier ?? fallbackIdentifier;
           
           // Remove id from data
           const cleanedResearch = { ...research };
           delete cleanedResearch.id;
           
           console.log("Research engagement data:", {
-            existingId,
+            existingIdentifier,
             cleanedData: cleanedResearch,
             hasAttachments: !!cleanedResearch.attachments,
             attachmentsValue: cleanedResearch.attachments,
-            url: existingId 
-              ? `${strapiUrl}/api/research-engagements/${existingId}`
+            url: existingIdentifier
+              ? `${strapiUrl}/api/research-engagements/${existingIdentifier}`
               : `${strapiUrl}/api/research-engagements`,
           });
           
           // Create or update research engagement
-          if (existingId) {
-            const updateResponse = await fetch(`${strapiUrl}/api/research-engagements/${existingId}`, {
+          if (existingIdentifier) {
+            const updateResponse = await fetch(`${strapiUrl}/api/research-engagements/${existingIdentifier}`, {
               method: "PUT",
               headers: {
                 "Content-Type": "application/json",
@@ -1416,7 +1644,7 @@ export async function PUT(request: NextRequest) {
             
             if (updateResponse.ok) {
               const researchId =
-                updateResult?.data?.documentId || updateResult?.data?.id || existingId;
+                updateResult?.data?.documentId || updateResult?.data?.id || existingIdentifier;
               if (researchId) {
                 researchEngagementIdentifiers.push(researchId);
                 console.log("Research engagement updated successfully:", researchId);
@@ -1425,7 +1653,7 @@ export async function PUT(request: NextRequest) {
               console.error("Failed to update research engagement:", {
                 status: updateResponse.status,
                 error: updateResult,
-                existingId,
+                existingIdentifier,
               });
             }
           } else {
@@ -1457,6 +1685,7 @@ export async function PUT(request: NextRequest) {
             }
           }
         }
+        researchIndex += 1;
       }
       
       // Replace with relation format (oneToMany uses set)

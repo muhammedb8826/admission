@@ -13,87 +13,15 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChevronLeft, ChevronRight, CheckCircle2, Loader2 } from "lucide-react";
-
-type StudentProfileFormData = {
-  // Page 1: Choose Term
-  semester: string;
-  programLevel: string;
-  programType: string;
-  
-  // Page 2: Personal Info
-  firstNameEn: string;
-  firstNameAm: string;
-  fatherNameEn: string;
-  fatherNameAm: string;
-  grandFatherNameEn: string;
-  grandFatherNameAm: string;
-  dateOfBirth: string;
-  natioanalId: string;
-  phoneNumber: string;
-  emergencyPhoneNumber: string;
-  maritalStatus: string;
-  gender: string;
-  residentialKebele: string;
-  birthKebele: string;
-  ptbcFullName: string;
-  ptbcKebele: string;
-  ptbcPhone: string;
-  ptbcAltPhone: string;
-  specialNeed: boolean;
-  specialNeedDescription: string;
-  birthCountry: number | null;
-  birthRegion: number | null;
-  birthZone: number | null;
-  birthWoreda: number | null;
-  residentialCountry: number | null;
-  residentialRegion: number | null;
-  residentialZone: number | null;
-  residentialWoreda: number | null;
-  ptbcCountry: number | null;
-  ptbcRegion: number | null;
-  ptbcZone: number | null;
-  
-  // Page 3: School Info (placeholder fields)
-  previousSchool: string;
-  graduationYear: string;
-  gpa: string;
-  
-  // Page 4: Field of Study
-  fieldOfStudy: string;
-  preferredProgram: string;
-  
-  // Page 5: Payment
-  paymentMethod: string;
-  paymentReference: string;
-  
-  // Page 6: Required Docs
-  documentsSubmitted: boolean;
-};
+import type {
+  StudentApplicationFormData,
+  Country,
+  Region,
+  Zone,
+  Woreda,
+} from "../types/student-application.types";
 
 const TOTAL_PAGES = 7;
-
-type Country = {
-  id: number;
-  name: string;
-  regions?: Region[];
-};
-
-type Region = {
-  id: number;
-  name: string;
-  zones?: Zone[];
-};
-
-type Zone = {
-  id: number;
-  name: string;
-  woredas?: Woreda[];
-};
-
-type Woreda = {
-  id: number;
-  name: string;
-};
 
 export function StudentApplicationForm() {
   const [currentPage, setCurrentPage] = useState(1);
@@ -120,7 +48,7 @@ export function StudentApplicationForm() {
   const [ptbcZones, setPtbcZones] = useState<Zone[]>([]);
   const [ptbcWoredas, setPtbcWoredas] = useState<Woreda[]>([]);
 
-  const [formData, setFormData] = useState<StudentProfileFormData>({
+  const [formData, setFormData] = useState<StudentApplicationFormData>({
     semester: "",
     programLevel: "",
     programType: "",
@@ -378,7 +306,7 @@ export function StudentApplicationForm() {
     }
   };
 
-  const handleInputChange = (field: keyof StudentProfileFormData, value: string | boolean | number | null) => {
+  const handleInputChange = (field: keyof StudentApplicationFormData, value: string | boolean | number | null) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
