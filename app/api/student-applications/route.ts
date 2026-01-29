@@ -312,8 +312,11 @@ export async function POST(request: NextRequest) {
     const userJwt = (session as { jwt?: string }).jwt;
     const authToken = userJwt || apiToken;
 
-    const programOfferingIdRaw = (body.data as { programOfferingId?: unknown })
-      ?.programOfferingId;
+    const bodyData = body.data as {
+      programOfferingId?: unknown;
+      programOfferingNumericId?: unknown;
+    };
+    const programOfferingIdRaw = bodyData?.programOfferingId;
     const programOfferingId = toNumberOrNull(programOfferingIdRaw);
     const programOfferingDocumentId =
       typeof programOfferingIdRaw === "string" &&
@@ -321,6 +324,7 @@ export async function POST(request: NextRequest) {
       Number.isNaN(Number(programOfferingIdRaw))
         ? programOfferingIdRaw.trim()
         : null;
+    const programOfferingNumericId = toNumberOrNull(bodyData?.programOfferingNumericId);
     if (!programOfferingId && !programOfferingDocumentId) {
       return NextResponse.json(
         { error: "Program offering is required" },
@@ -346,12 +350,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const programOffering = await fetchProgramOffering({
+    let programOffering = await fetchProgramOffering({
       strapiUrl,
       offeringId: programOfferingId,
       offeringDocumentId: programOfferingDocumentId,
       token: authToken,
     });
+    if (!programOffering && programOfferingNumericId != null) {
+      programOffering = await fetchProgramOffering({
+        strapiUrl,
+        offeringId: programOfferingNumericId,
+        offeringDocumentId: null,
+        token: authToken,
+      });
+    }
     if (!programOffering) {
       return NextResponse.json(
         { error: "Program offering not found" },

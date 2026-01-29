@@ -76,6 +76,9 @@ export function StudentApplicationForm() {
     setSubmitError(null);
 
     try {
+      const selectedOffering = programOfferings.find(
+        (o) => (o.documentId ?? String(o.id)) === selectedOfferingId
+      );
       const response = await fetch("/api/student-applications", {
         method: "POST",
         headers: {
@@ -83,8 +86,12 @@ export function StudentApplicationForm() {
         },
         body: JSON.stringify({
           data: {
-            // Send the Strapi documentId string when available (preferred in Strapi v5)
+            // documentId (preferred in Strapi v5) or string id for lookup
             programOfferingId: selectedOfferingId,
+            // numeric id fallback for production when documentId filter fails
+            ...(typeof selectedOffering?.id === "number" && {
+              programOfferingNumericId: selectedOffering.id,
+            }),
             applicationStatus: "Submitted",
           },
         }),
