@@ -26,6 +26,7 @@ jobs:
         rm -f .env.production
         {
           echo "NEXT_PUBLIC_API_BASE_URL=https://admission-portal.qenenia.com";
+          echo "NEXT_PUBLIC_API_TOKEN=8c4e345ad940a7ec6832ead2ae590641ca2a6fef87b3cde74c75531ea30adb8c5f0470ba90a72b540f99fe37bfbd540923577b6fd8dbc3ff201bfd0bc11cd09b627bb8c8b2e7d23dc02158111b7034999f990c61445b00e69b0dad1356ba70b84053e2bf19dbdd58f6e3229f088949f6784c33eb783dc1d0b7dba6212377f769";
         } >> .env.production
 
     - name: Build Next.js app
