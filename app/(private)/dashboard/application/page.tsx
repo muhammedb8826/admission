@@ -26,6 +26,7 @@ type StudentApplication = {
     documentId?: string;
     program?: { name?: string; fullName?: string } | null;
     batch?: { name?: string; code?: string | null } | null;
+    academic_calendar?: { name?: string; academicYearRange?: string } | null;
   } | null;
   academic_calendar?: {
     id?: number;
@@ -43,9 +44,9 @@ async function getStudentProfile(email: string, userId: string) {
 
     const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
     
-    // Fetch profile with all nested data
+    // Use same query as dashboard so isProfileComplete and other root fields are returned consistently
     const response = await fetch(
-      `${strapiUrl}/api/student-profiles?populate[residentialAddress][populate]=*&populate[birthAddress][populate]=*&populate[personToBeContacted][populate]=*&populate[primary_education][populate]=*&populate[secondary_education][populate]=*&populate[tertiary_educations][populate]=*`,
+      `${strapiUrl}/api/student-profiles?populate=*`,
       {
         method: "GET",
         headers: {
@@ -62,8 +63,6 @@ async function getStudentProfile(email: string, userId: string) {
 
     const result = await response.json();
 
-    console.log("result", result);
-    
     // Filter server-side to only return the logged-in user's profile
     type ProfileData = StudentProfile & { [key: string]: unknown };
     
@@ -181,6 +180,8 @@ export default async function ApplicationPage() {
                   <p className="text-sm font-medium">
                     {studentApplication.academic_calendar?.academicYearRange ||
                       studentApplication.academic_calendar?.name ||
+                      studentApplication.program_offering?.academic_calendar?.academicYearRange ||
+                      studentApplication.program_offering?.academic_calendar?.name ||
                       "N/A"}
                   </p>
                 </div>
@@ -209,11 +210,19 @@ async function getStudentApplication(profile: StudentProfile | null, sessionUser
     }
 
     const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
-    const populate = "populate=*";
+    // Match program-offerings populate so program_offering returns program + batch (same shape as /api/program-offerings)
+    const populate =
+      "populate=*" +
+      "&populate[academic_calendar]=*" +
+      "&populate[program_offering][populate][academic_calendar][populate]=*" +
+      "&populate[program_offering][populate][program][populate]=*" +
+      "&populate[program_offering][populate][batch][populate]=*" +
+      "&populate[program_offering][populate][college][populate]=*" +
+      "&populate[program_offering][populate][department][populate]=*" +
+      "&populate[program_offering][populate][semesters][populate]=*";
 
     const fetchByFilters = async (filters: string[]) => {
       const url = `${strapiUrl}/api/student-applications?${filters.join("&")}&${populate}&sort[0]=updatedAt:desc&pagination[pageSize]=1`;
-      console.log("[dashboard/application] student-applications lookup", { filters, url });
       const response = await fetch(url, {
         method: "GET",
         headers: {

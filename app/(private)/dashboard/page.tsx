@@ -64,6 +64,7 @@ type StudentApplication = {
     documentId?: string;
     program?: { name?: string; fullName?: string } | null;
     batch?: { name?: string; code?: string | null } | null;
+    academic_calendar?: { name?: string; academicYearRange?: string } | null;
   } | null;
   academic_calendar?: {
     id?: number;
@@ -178,11 +179,19 @@ async function getStudentApplication(profile: StudentProfile | null, sessionUser
     }
 
     const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
-    const populate = "populate=*";
+    // Match program-offerings populate so program_offering returns program + batch (same shape as /api/program-offerings)
+    const populate =
+      "populate=*" +
+      "&populate[academic_calendar]=*" +
+      "&populate[program_offering][populate][academic_calendar][populate]=*" +
+      "&populate[program_offering][populate][program][populate]=*" +
+      "&populate[program_offering][populate][batch][populate]=*" +
+      "&populate[program_offering][populate][college][populate]=*" +
+      "&populate[program_offering][populate][department][populate]=*" +
+      "&populate[program_offering][populate][semesters][populate]=*";
 
     const fetchByFilters = async (filters: string[]) => {
       const url = `${strapiUrl}/api/student-applications?${filters.join("&")}&${populate}&sort[0]=updatedAt:desc&pagination[pageSize]=1`;
-      console.log("[dashboard] student-applications lookup", { filters, url });
       const response = await fetch(url, {
         method: "GET",
         headers: {
@@ -345,10 +354,14 @@ export default async function DashboardPage() {
                     <p className="text-lg font-semibold">
                       {studentApplication?.academic_calendar?.academicYearRange ||
                         studentApplication?.academic_calendar?.name ||
+                        studentApplication?.program_offering?.academic_calendar?.academicYearRange ||
+                        studentApplication?.program_offering?.academic_calendar?.name ||
                         "N/A"}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {studentApplication?.academic_calendar?.name || "Not assigned"}
+                      {studentApplication?.academic_calendar?.name ||
+                        studentApplication?.program_offering?.academic_calendar?.name ||
+                        "Not assigned"}
                     </p>
                   </div>
                   <Calendar className="h-8 w-8 text-primary/70" />
@@ -395,6 +408,8 @@ export default async function DashboardPage() {
                         <p className="text-sm font-medium">
                           {studentApplication?.academic_calendar?.academicYearRange ||
                             studentApplication?.academic_calendar?.name ||
+                            studentApplication?.program_offering?.academic_calendar?.academicYearRange ||
+                            studentApplication?.program_offering?.academic_calendar?.name ||
                             "Not specified"}
                         </p>
                       </div>
