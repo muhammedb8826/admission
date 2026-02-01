@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStrapiURL } from "@/lib/strapi/client";
-import { getSession } from "@/lib/auth/session";
 
 type StrapiEntity = Record<string, unknown>;
 
@@ -141,12 +140,7 @@ const normalizeOffering = (raw: StrapiEntity): StrapiEntity => {
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getSession();
-
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    // Public route: no auth required (used by apply/undergraduate, apply/postgraduate, etc.)
     const strapiUrl = getStrapiURL();
     if (!strapiUrl) {
       return NextResponse.json(

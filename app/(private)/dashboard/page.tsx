@@ -101,7 +101,19 @@ async function getStudentProfile(email: string, userId: string) {
     }
 
     const result = await response.json();
-    
+    // DEBUG: raw Strapi response (dashboard)
+    console.log("[Dashboard getStudentProfile] raw result.data type:", Array.isArray(result?.data) ? "array" : typeof result?.data);
+    if (result?.data && !Array.isArray(result.data)) {
+      const single = result.data as Record<string, unknown>;
+      console.log("[Dashboard getStudentProfile] single profile keys:", Object.keys(single));
+      console.log("[Dashboard getStudentProfile] isProfileComplete:", single.isProfileComplete);
+    } else if (result?.data && Array.isArray(result.data)) {
+      console.log("[Dashboard getStudentProfile] profiles count:", result.data.length);
+      (result.data as Record<string, unknown>[]).forEach((p, i) => {
+        console.log("[Dashboard getStudentProfile] profile[" + i + "] isProfileComplete:", p.isProfileComplete, "keys:", Object.keys(p));
+      });
+    }
+
     // Filter server-side to only return the logged-in user's profile
     type ProfileData = StudentProfile & { [key: string]: unknown };
     
@@ -115,7 +127,9 @@ async function getStudentProfile(email: string, userId: string) {
           if (profile.user?.id === Number(userId)) return true;
           return false;
         });
-        return (userProfile || null) as StudentProfile | null;
+        const resolved = (userProfile || null) as StudentProfile | null;
+        console.log("[Dashboard getStudentProfile] resolved (from array) isProfileComplete:", resolved?.isProfileComplete);
+        return resolved;
       } else if (result.data) {
         // Single object - check if it belongs to the user
         const profile = result.data as ProfileData;
@@ -125,6 +139,7 @@ async function getStudentProfile(email: string, userId: string) {
           profile.userId === userId ||
           profile.user?.id === Number(userId)
         ) {
+          console.log("[Dashboard getStudentProfile] resolved (single) isProfileComplete:", profile.isProfileComplete);
           return profile as StudentProfile;
         }
       }
@@ -268,6 +283,7 @@ export default async function DashboardPage() {
   const hasApplication = !!studentApplication;
   const applicationStatus = studentApplication?.applicationStatus || "not_started";
   const isProfileComplete = studentProfile?.isProfileComplete === true;
+  console.log("[Dashboard page] studentProfile id:", studentProfile?.id, "isProfileComplete raw:", studentProfile?.isProfileComplete, "resolved:", isProfileComplete);
 
   return (
         <div className="flex min-h-screen flex-col bg-muted/20">
