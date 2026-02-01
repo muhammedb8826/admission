@@ -166,8 +166,31 @@ export async function GET(request: NextRequest) {
     ];
     const level = searchParams.get("level");
     if (level && level.trim()) {
-      // Case-insensitive match to avoid level casing mismatches (e.g. "Remedial" vs "remedial")
-      filters.push(`filters[program][level][$eqi]=${encodeURIComponent(level.trim())}`);
+      const normalizedLevel = level.trim().toLowerCase();
+      const levelCandidates =
+        normalizedLevel === "undergraduate"
+          ? ["Undergraduate"]
+          : normalizedLevel === "postgraduate" || normalizedLevel === "post graduate"
+            ? ["Postgraduate", "Post Graduate"]
+            : normalizedLevel === "phd"
+              ? ["PhD", "PHD", "Phd"]
+              : normalizedLevel === "pgdt"
+                ? ["PGDT"]
+                : normalizedLevel === "remedial"
+                  ? ["Remedial"]
+                  : [level.trim()];
+
+      if (levelCandidates.length === 1) {
+        filters.push(
+          `filters[program][level][$eq]=${encodeURIComponent(levelCandidates[0])}`
+        );
+      } else {
+        levelCandidates.forEach((candidate, index) => {
+          filters.push(
+            `filters[program][level][$in][${index}]=${encodeURIComponent(candidate)}`
+          );
+        });
+      }
     }
 
     const url = `${strapiUrl}/api/program-offerings?populate=${encodeURIComponent(
