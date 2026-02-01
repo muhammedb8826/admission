@@ -1,20 +1,19 @@
-import { ProgramsList, getPrograms } from "@/features/programs";
+import { ProgramOfferingsList, getProgramOfferings } from "@/features/program-offerings";
 
-export default async function UndergraduatePage() {
-  const programs = await getPrograms();
+export default async function ApplyRemedialPage() {
+  const offerings = await getProgramOfferings("Remedial");
 
   return (
     <div className="w-full">
       <main className="mx-auto w-full max-w-7xl px-4 py-12">
         <div className="mb-10 space-y-3 text-center">
           <h1 className="text-3xl font-semibold text-foreground md:text-4xl">
-            Undergraduate Programs
+            Apply - Remedial Programs
           </h1>
         </div>
 
-        <ProgramsList programs={programs} initialFilter="undergraduate" showFilters={false} />
+        <ProgramOfferingsList offerings={offerings} />
       </main>
     </div>
   );
 }
-

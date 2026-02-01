@@ -16,6 +16,12 @@ const socialIcons: Record<string, React.ComponentType<{ className?: string }>> =
   telegram: Send,
 };
 
+const normalizeUrl = (url?: string) => {
+  if (!url) return url;
+  if (url.startsWith("/") || url.startsWith("http")) return url;
+  return `/${url}`;
+};
+
 export function TopHeader({ data }: TopHeaderProps) {
   console.log(data);
   return (
@@ -87,7 +93,7 @@ export function TopHeader({ data }: TopHeaderProps) {
               {data.buttons.map((button, index) => (
                 <Link
                   key={`${button.url}-${index}`}
-                  href={button.url}
+                  href={normalizeUrl(button.url) || button.url}
                   className={
                     button.isPrimary
                       ? "rounded bg-(--brand-green) px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-(--brand-accent)"

@@ -12,6 +12,44 @@ type HeaderProps = {
   siteName: string;
 };
 
+const normalizeLabel = (label: string) => label.toLowerCase().replace(/\s+/g, " ").trim();
+
+const normalizeUrl = (url?: string) => {
+  if (!url) return url;
+  if (url.startsWith("/") || url.startsWith("http")) return url;
+  return `/${url}`;
+};
+
+const resolveApplyLevelSlug = (groupLabel: string) => {
+  const normalized = normalizeLabel(groupLabel);
+  if (normalized.includes("undergrad")) return "undergraduate";
+  if (normalized.includes("post") && normalized.includes("grad")) return "postgraduate";
+  if (normalized.includes("phd")) return "phd";
+  if (normalized.includes("pgdt")) return "pgdt";
+  if (normalized.includes("remedial")) return "remedial";
+  return null;
+};
+
+const resolveLinkUrl = (groupLabel: string, linkLabel: string, linkUrl: string) => {
+  const normalizedLabel = normalizeLabel(linkLabel);
+  const levelSlug = resolveApplyLevelSlug(groupLabel);
+
+  // Normalize backend URLs to absolute paths to avoid /apply/* prefixing
+  const normalizedUrl = normalizeUrl(linkUrl);
+
+  // Respect explicit backend URLs (e.g. "/login"), only rewrite empty/hash links
+  if (normalizedUrl && normalizedUrl !== "#" && normalizedUrl !== "/") return normalizedUrl;
+  if (!levelSlug) return linkUrl;
+
+  if (normalizedLabel.includes("apply")) {
+    return `/apply/${levelSlug}`;
+  }
+  if (normalizedLabel.includes("program")) {
+    return `/${levelSlug}`;
+  }
+  return linkUrl;
+};
+
 export function Header({ data, topHeaderData, siteName }: HeaderProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -53,7 +91,7 @@ export function Header({ data, topHeaderData, siteName }: HeaderProps) {
               {data.navigationLinks.map((link) => (
                 <Link
                   key={`${link.label}-${link.url}`}
-                  href={link.url}
+                  href={normalizeUrl(link.url) || link.url}
                   target={link.isExternal ? "_blank" : undefined}
                   rel={link.isExternal ? "noopener noreferrer" : undefined}
                   className="text-sm font-medium transition-colors whitespace-nowrap text-white hover:text-(--brand-accent)"
@@ -82,17 +120,20 @@ export function Header({ data, topHeaderData, siteName }: HeaderProps) {
                   </button>
                   <div className="hidden group-hover:block transition duration-150 absolute left-0 top-full min-w-[200px] rounded-md bg-white text-(--brand-black) shadow-lg border border-border/40 z-50">
                     <div className="py-2">
-                      {group.links.map((link) => (
-                        <Link
-                          key={`${group.label}-${link.label}-${link.url}`}
-                          href={link.url}
-                          target={link.isExternal ? "_blank" : undefined}
-                          rel={link.isExternal ? "noopener noreferrer" : undefined}
-                          className="block px-4 py-2 text-sm hover:bg-(--brand-accent)/10 hover:text-(--brand-accent)"
-                        >
-                          {link.label}
-                        </Link>
-                      ))}
+                      {group.links.map((link) => {
+                        const linkUrl = resolveLinkUrl(group.label, link.label, link.url);
+                        return (
+                          <Link
+                            key={`${group.label}-${link.label}-${link.url}`}
+                            href={linkUrl}
+                            target={link.isExternal ? "_blank" : undefined}
+                            rel={link.isExternal ? "noopener noreferrer" : undefined}
+                            className="block px-4 py-2 text-sm hover:bg-(--brand-accent)/10 hover:text-(--brand-accent)"
+                          >
+                            {link.label}
+                          </Link>
+                        );
+                      })}
                       {group.links.length === 0 && (
                         <span className="block px-4 py-2 text-sm text-muted-foreground">Coming soon</span>
                       )}
@@ -106,7 +147,7 @@ export function Header({ data, topHeaderData, siteName }: HeaderProps) {
             {data.ctaButton && (
               <div className="hidden md:flex">
                 <Link
-                  href={data.ctaButton.url}
+                  href={normalizeUrl(data.ctaButton.url) || data.ctaButton.url}
                   target={data.ctaButton.isExternal ? "_blank" : undefined}
                   rel={data.ctaButton.isExternal ? "noopener noreferrer" : undefined}
                   className="rounded-md bg-(--brand-accent) px-4 py-2 text-sm font-semibold text-[#0c0d0f] transition hover:bg-(--brand-accent)/90"
@@ -167,7 +208,7 @@ export function Header({ data, topHeaderData, siteName }: HeaderProps) {
                   {data.navigationLinks.map((link) => (
                     <Link
                       key={`${link.label}-${link.url}`}
-                      href={link.url}
+                      href={normalizeUrl(link.url) || link.url}
                       target={link.isExternal ? "_blank" : undefined}
                       rel={link.isExternal ? "noopener noreferrer" : undefined}
                       className="text-lg font-medium py-3 transition-colors hover:text-(--brand-accent)"
@@ -181,18 +222,21 @@ export function Header({ data, topHeaderData, siteName }: HeaderProps) {
                     <div key={`m-${group.label}`} className="py-2">
                       <div className="text-sm font-semibold text-white/80 px-1">{group.label}</div>
                       <div className="flex flex-col">
-                        {group.links.map((link) => (
-                          <Link
-                            key={`${group.label}-${link.label}-${link.url}`}
-                            href={link.url}
-                            target={link.isExternal ? "_blank" : undefined}
-                            rel={link.isExternal ? "noopener noreferrer" : undefined}
-                            className="text-base py-2 pl-3 transition-colors hover:text-(--brand-accent)"
-                            onClick={() => setIsMenuOpen(false)}
-                          >
-                            {link.label}
-                          </Link>
-                        ))}
+                        {group.links.map((link) => {
+                          const linkUrl = resolveLinkUrl(group.label, link.label, link.url);
+                          return (
+                            <Link
+                              key={`${group.label}-${link.label}-${link.url}`}
+                              href={linkUrl}
+                              target={link.isExternal ? "_blank" : undefined}
+                              rel={link.isExternal ? "noopener noreferrer" : undefined}
+                              className="text-base py-2 pl-3 transition-colors hover:text-(--brand-accent)"
+                              onClick={() => setIsMenuOpen(false)}
+                            >
+                              {link.label}
+                            </Link>
+                          );
+                        })}
                         {group.links.length === 0 && (
                           <span className="text-sm text-white/60 pl-3 py-2">Coming soon</span>
                         )}
@@ -236,7 +280,7 @@ export function Header({ data, topHeaderData, siteName }: HeaderProps) {
               {data.ctaButton && (
                 <div className="px-6 pb-4">
                   <Link
-                    href={data.ctaButton.url}
+                    href={normalizeUrl(data.ctaButton.url) || data.ctaButton.url}
                     target={data.ctaButton.isExternal ? "_blank" : undefined}
                     rel={data.ctaButton.isExternal ? "noopener noreferrer" : undefined}
                     className="block w-full rounded-lg bg-(--brand-accent) px-4 py-3 text-center text-sm font-semibold text-[#0c0d0f] transition hover:bg-(--brand-accent)/90"
@@ -252,7 +296,7 @@ export function Header({ data, topHeaderData, siteName }: HeaderProps) {
                 {topHeaderData.buttons.map((button, index) => (
                   <Link
                     key={`${button.url}-${index}`}
-                    href={button.url}
+                    href={normalizeUrl(button.url) || button.url}
                     className={
                       button.isPrimary
                         ? "flex-1 rounded-lg bg-(--brand-green) px-4 py-3 text-center text-sm font-medium text-white transition-colors hover:bg-(--brand-accent)"

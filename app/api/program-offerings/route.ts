@@ -164,6 +164,11 @@ export async function GET(request: NextRequest) {
       "filters[academic_calendar][isActive][$eq]=true",
       "pagination[pageSize]=100",
     ];
+    const level = searchParams.get("level");
+    if (level && level.trim()) {
+      // Case-insensitive match to avoid level casing mismatches (e.g. "Remedial" vs "remedial")
+      filters.push(`filters[program][level][$eqi]=${encodeURIComponent(level.trim())}`);
+    }
 
     const url = `${strapiUrl}/api/program-offerings?populate=${encodeURIComponent(
       populate
