@@ -25,7 +25,7 @@ async function fetchFaq(): Promise<StrapiFaqResponse> {
       next: { revalidate: 300 },
     });
     if (!res.ok) return {};
-    return res.json();
+    return await res.json();
   } catch {
     return {};
   }

@@ -105,7 +105,8 @@ export async function strapiFetch<TResponse>(
       );
     }
 
-    return response.json();
+    // Must await so JSON parse failures are caught by this try/catch (return promise alone bypasses catch)
+    return await response.json();
   } catch (error) {
     // Log error but return empty response structure to allow build/runtime to continue
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -257,7 +258,8 @@ export async function internalApiFetch<TResponse>(
       );
     }
 
-    return response.json();
+    // Must await so JSON parse failures are caught below (same as strapiFetch)
+    return await response.json();
   } catch (error) {
     // Log error but return null to allow graceful handling
     const errorMessage = error instanceof Error ? error.message : String(error);
