@@ -12,7 +12,7 @@ const nextConfig = {
       },
       {
         protocol: "https",
-        hostname: "admission-portal.bluemoogt.com",
+        hostname: "admission-portal.bluemoongt.com",
         pathname: "/uploads/**",
       },
     ],
