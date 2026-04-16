@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStrapiURL } from "@/lib/strapi/client";
 import { getSession } from "@/lib/auth/session";
+import {
+  countPaymentsForStudentApplication,
+  createPaymentRecord,
+  fetchPaymentMethodByIdentifiers,
+  parsePaymentStatus,
+  type PaymentStatus,
+} from "@/lib/strapi/payments";
 
 type StrapiEntity = Record<string, unknown>;
 
@@ -67,6 +74,19 @@ const parseStrapiCollection = (raw: unknown): StrapiEntity[] => {
   return [];
 };
 
+const extractApplicationFromStrapiResponse = (result: unknown): StrapiEntity | null => {
+  const raw = result as { data?: unknown };
+  const data = raw?.data;
+  if (Array.isArray(data)) {
+    const first = data[0];
+    return normalizeEntity(first) ?? (first as StrapiEntity);
+  }
+  if (data && typeof data === "object") {
+    return normalizeEntity(data) ?? (data as StrapiEntity);
+  }
+  return null;
+};
+
 const fetchStudentProfileForUser = async ({
   strapiUrl,
   userJwt,
@@ -127,6 +147,8 @@ const fetchProgramOffering = async ({
   const populate = [
     "populate[academic_calendar][fields][0]=documentId",
     "populate[academic_calendar][fields][1]=isActive",
+    "populate[program][fields][0]=documentId",
+    "populate[program][fields][1]=id",
   ].join("&");
 
   const filters: string[] = [];
@@ -156,6 +178,10 @@ const fetchProgramOffering = async ({
   return normalized || null;
 };
 
+/** Strapi v4/v5 may use snake_case or camelCase relation keys in filters */
+const STUDENT_PROFILE_FILTER_KEYS = ["student_profile", "studentProfile"] as const;
+const PROGRAM_OFFERING_FILTER_KEYS = ["program_offering", "programOffering"] as const;
+
 const fetchApplicationCount = async ({
   strapiUrl,
   offeringId,
@@ -167,28 +193,31 @@ const fetchApplicationCount = async ({
   offeringDocumentId?: string | null;
   token?: string;
 }): Promise<number> => {
-  const filters: string[] = [];
-  if (offeringDocumentId) {
-    filters.push(
-      `filters[program_offering][documentId][$eq]=${encodeURIComponent(offeringDocumentId)}`
-    );
-  } else if (typeof offeringId === "number") {
-    filters.push(`filters[program_offering][id][$eq]=${offeringId}`);
+  for (const rel of PROGRAM_OFFERING_FILTER_KEYS) {
+    const filters: string[] = [];
+    if (offeringDocumentId) {
+      filters.push(`filters[${rel}][documentId][$eq]=${encodeURIComponent(offeringDocumentId)}`);
+    } else if (typeof offeringId === "number") {
+      filters.push(`filters[${rel}][id][$eq]=${offeringId}`);
+    } else {
+      continue;
+    }
+    const url = `${strapiUrl}/api/student-applications?${filters.join("&")}&pagination[pageSize]=1`;
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      cache: "no-store",
+    });
+    const raw = (await res.json().catch(() => ({}))) as {
+      meta?: { pagination?: { total?: number } };
+    };
+    if (!res.ok) continue;
+    return raw?.meta?.pagination?.total ?? 0;
   }
-  const url = `${strapiUrl}/api/student-applications?${filters.join("&")}&pagination[pageSize]=1`;
-  const res = await fetch(url, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token && { Authorization: `Bearer ${token}` }),
-    },
-    cache: "no-store",
-  });
-  const raw = (await res.json().catch(() => ({}))) as {
-    meta?: { pagination?: { total?: number } };
-  };
-  if (!res.ok) return 0;
-  return raw?.meta?.pagination?.total ?? 0;
+  return 0;
 };
 
 const findExistingApplication = async ({
@@ -206,36 +235,284 @@ const findExistingApplication = async ({
   offeringDocumentId?: string | null;
   token?: string;
 }): Promise<StrapiEntity | null> => {
-  const filters: string[] = [];
-  if (profileDocumentId) {
-    filters.push(
-      `filters[student_profile][documentId][$eq]=${encodeURIComponent(profileDocumentId)}`
-    );
-  } else if (typeof profileId === "number") {
-    filters.push(`filters[student_profile][id][$eq]=${profileId}`);
+  const offeringFilterVariants: string[][] = [];
+  for (const rel of PROGRAM_OFFERING_FILTER_KEYS) {
+    if (offeringDocumentId) {
+      offeringFilterVariants.push([
+        `filters[${rel}][documentId][$eq]=${encodeURIComponent(offeringDocumentId)}`,
+      ]);
+    } else if (typeof offeringId === "number") {
+      offeringFilterVariants.push([`filters[${rel}][id][$eq]=${offeringId}`]);
+    }
   }
-  if (offeringDocumentId) {
-    filters.push(
-      `filters[program_offering][documentId][$eq]=${encodeURIComponent(offeringDocumentId)}`
-    );
-  } else if (typeof offeringId === "number") {
-    filters.push(`filters[program_offering][id][$eq]=${offeringId}`);
+  if (offeringFilterVariants.length === 0) {
+    return null;
   }
 
-  const url = `${strapiUrl}/api/student-applications?${filters.join("&")}&pagination[pageSize]=1`;
-  const res = await fetch(url, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token && { Authorization: `Bearer ${token}` }),
-    },
-    cache: "no-store",
-  });
-  if (!res.ok) return null;
-  const raw = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  const items = parseStrapiCollection(raw);
-  const existing = normalizeEntity(items[0]) ?? items[0];
-  return existing || null;
+  for (const profRel of STUDENT_PROFILE_FILTER_KEYS) {
+    const profileFilters: string[] = [];
+    if (profileDocumentId) {
+      profileFilters.push(
+        `filters[${profRel}][documentId][$eq]=${encodeURIComponent(profileDocumentId)}`
+      );
+    } else if (typeof profileId === "number") {
+      profileFilters.push(`filters[${profRel}][id][$eq]=${profileId}`);
+    } else {
+      continue;
+    }
+
+    for (const offFilters of offeringFilterVariants) {
+      const filters = [...profileFilters, ...offFilters];
+      const url = `${strapiUrl}/api/student-applications?${filters.join("&")}&pagination[pageSize]=1`;
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+        cache: "no-store",
+      });
+      if (!res.ok) continue;
+      const raw = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      const items = parseStrapiCollection(raw);
+      if (items.length > 0) {
+        const existing = normalizeEntity(items[0]) ?? items[0];
+        return existing || null;
+      }
+    }
+  }
+
+  const targetOffering = {
+    id: typeof offeringId === "number" ? offeringId : null,
+    documentId: offeringDocumentId ?? null,
+  };
+
+  for (const profRel of STUDENT_PROFILE_FILTER_KEYS) {
+    const profileFilters: string[] = [];
+    if (profileDocumentId) {
+      profileFilters.push(
+        `filters[${profRel}][documentId][$eq]=${encodeURIComponent(profileDocumentId)}`
+      );
+    } else if (typeof profileId === "number") {
+      profileFilters.push(`filters[${profRel}][id][$eq]=${profileId}`);
+    } else {
+      continue;
+    }
+
+    const fallbackUrl = `${strapiUrl}/api/student-applications?${profileFilters.join("&")}&populate[program_offering][fields][0]=id&populate[program_offering][fields][1]=documentId&pagination[pageSize]=100`;
+    const fbRes = await fetch(fallbackUrl, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      cache: "no-store",
+    });
+    if (!fbRes.ok) continue;
+    const fbRaw = (await fbRes.json().catch(() => ({}))) as Record<string, unknown>;
+    const fbItems = parseStrapiCollection(fbRaw);
+    for (const app of fbItems) {
+      const rawOff =
+        getField(app, "program_offering") ?? getField(app, "programOffering");
+      if (offeringIdentitiesMatch(getOfferingIdentity(rawOff), targetOffering)) {
+        return normalizeEntity(app) ?? app;
+      }
+    }
+  }
+
+  return null;
+};
+
+/**
+ * When combined profile+offering filters return nothing (Strapi filter quirks), find this user's
+ * row by querying all applications for the offering and matching `student_profile` in memory.
+ */
+const findExistingApplicationByOfferingScan = async ({
+  strapiUrl,
+  profileId,
+  profileDocumentId,
+  offeringId,
+  offeringDocumentId,
+  token,
+}: {
+  strapiUrl: string;
+  profileId?: number | null;
+  profileDocumentId?: string | null;
+  offeringId?: number | null;
+  offeringDocumentId?: string | null;
+  token?: string;
+}): Promise<StrapiEntity | null> => {
+  const hasProfileKey =
+    (typeof profileDocumentId === "string" && profileDocumentId.trim() !== "") ||
+    typeof profileId === "number";
+  if (!hasProfileKey) {
+    return null;
+  }
+
+  for (const rel of PROGRAM_OFFERING_FILTER_KEYS) {
+    const filters: string[] = [];
+    if (offeringDocumentId) {
+      filters.push(`filters[${rel}][documentId][$eq]=${encodeURIComponent(offeringDocumentId)}`);
+    } else if (typeof offeringId === "number") {
+      filters.push(`filters[${rel}][id][$eq]=${offeringId}`);
+    } else {
+      continue;
+    }
+
+    const url = `${strapiUrl}/api/student-applications?${filters.join("&")}&populate=*&pagination[pageSize]=100`;
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      cache: "no-store",
+    });
+    if (!res.ok) continue;
+
+    const raw = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    const items = parseStrapiCollection(raw);
+    for (const app of items) {
+      const norm = normalizeEntity(app) ?? app;
+      const spRaw =
+        getField(norm, "student_profile") ?? getField(norm, "studentProfile");
+      const spNorm = normalizeRelation(spRaw);
+      const spUnwrapped = (Array.isArray(spNorm) ? spNorm[0] : spNorm) as StrapiEntity | null;
+      const sp = (normalizeEntity(spUnwrapped) ?? spUnwrapped) as StrapiEntity | null;
+      if (!sp || typeof sp !== "object") continue;
+
+      const appDoc =
+        typeof getField(sp, "documentId") === "string"
+          ? (getField(sp, "documentId") as string)
+          : null;
+      const appPid = toNumberOrNull(getField(sp, "id"));
+
+      const matchesProfile =
+        (typeof profileDocumentId === "string" &&
+          profileDocumentId.trim() !== "" &&
+          appDoc != null &&
+          appDoc === profileDocumentId.trim()) ||
+        (typeof profileId === "number" && appPid === profileId);
+
+      if (matchesProfile) {
+        return norm as StrapiEntity;
+      }
+    }
+  }
+
+  return null;
+};
+
+const fetchApplicationsForProfile = async ({
+  strapiUrl,
+  profileId,
+  profileDocumentId,
+  token,
+}: {
+  strapiUrl: string;
+  profileId?: number | null;
+  profileDocumentId?: string | null;
+  token?: string;
+}): Promise<StrapiEntity[]> => {
+  const populate =
+    "populate[program_offering][fields][0]=id&populate[program_offering][fields][1]=documentId" +
+    "&populate[program_offering][populate][program][fields][0]=id&populate[program_offering][populate][program][fields][1]=documentId";
+
+  for (const profRel of STUDENT_PROFILE_FILTER_KEYS) {
+    const filters: string[] = [];
+    if (profileDocumentId) {
+      filters.push(
+        `filters[${profRel}][documentId][$eq]=${encodeURIComponent(profileDocumentId)}`
+      );
+    } else if (typeof profileId === "number") {
+      filters.push(`filters[${profRel}][id][$eq]=${profileId}`);
+    } else {
+      return [];
+    }
+    const url = `${strapiUrl}/api/student-applications?${filters.join("&")}&${populate}&pagination[pageSize]=100`;
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      cache: "no-store",
+    });
+    if (!res.ok) continue;
+    const raw = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    const items = parseStrapiCollection(raw);
+    if (items.length > 0) {
+      return items
+        .map((item) => normalizeEntity(item) ?? item)
+        .filter((item): item is StrapiEntity => Boolean(item));
+    }
+  }
+
+  return [];
+};
+
+const getOfferingIdentity = (
+  offering: unknown
+): { id: number | null; documentId: string | null } => {
+  if (typeof offering === "number" && Number.isFinite(offering)) {
+    return { id: offering, documentId: null };
+  }
+  if (typeof offering === "string" && offering.trim() !== "" && !Number.isNaN(Number(offering))) {
+    const n = Number(offering);
+    return Number.isFinite(n) ? { id: n, documentId: null } : { id: null, documentId: null };
+  }
+  const normalized = normalizeRelation(offering) as StrapiEntity | StrapiEntity[] | null;
+  const o = (Array.isArray(normalized) ? normalized[0] : normalized) as StrapiEntity | null;
+  if (!o || typeof o !== "object") {
+    return { id: null, documentId: null };
+  }
+  return {
+    id: toNumberOrNull(getField(o, "id")),
+    documentId:
+      typeof getField(o, "documentId") === "string"
+        ? (getField(o, "documentId") as string)
+        : null,
+  };
+};
+
+const getProgramIdentityFromOffering = (
+  offering: unknown
+): { id: number | null; documentId: string | null } => {
+  const normalized = normalizeRelation(offering) as StrapiEntity | StrapiEntity[] | null;
+  const o = (Array.isArray(normalized) ? normalized[0] : normalized) as StrapiEntity | null;
+  if (!o || typeof o !== "object") {
+    return { id: null, documentId: null };
+  }
+  const programRaw = normalizeRelation(getField(o, "program"));
+  const program = (Array.isArray(programRaw) ? programRaw[0] : programRaw) as StrapiEntity | null;
+  if (!program || typeof program !== "object") {
+    return { id: null, documentId: null };
+  }
+  return {
+    id: toNumberOrNull(getField(program, "id")),
+    documentId:
+      typeof getField(program, "documentId") === "string"
+        ? (getField(program, "documentId") as string)
+        : null,
+  };
+};
+
+const offeringIdentitiesMatch = (
+  a: { id: number | null; documentId: string | null },
+  b: { id: number | null; documentId: string | null }
+): boolean => {
+  if (a.documentId && b.documentId && a.documentId === b.documentId) return true;
+  if (a.id != null && b.id != null && a.id === b.id) return true;
+  return false;
+};
+
+const programIdentitiesMatch = (
+  a: { id: number | null; documentId: string | null },
+  b: { id: number | null; documentId: string | null }
+): boolean => {
+  if (a.documentId && b.documentId && a.documentId === b.documentId) return true;
+  if (a.id != null && b.id != null && a.id === b.id) return true;
+  return false;
 };
 
 export async function GET(request: NextRequest) {
@@ -386,12 +663,104 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const applicationStatus =
+      typeof (body.data as { applicationStatus?: unknown })?.applicationStatus === "string"
+        ? (body.data as { applicationStatus: string }).applicationStatus
+        : "Draft";
+    const isSubmitted = applicationStatus.trim().toLowerCase() === "submitted";
+    const applicationFee = toNumberOrNull(getField(programOffering, "applicationFee"));
+    const requiresApplicationPayment =
+      isSubmitted && applicationFee != null && applicationFee > 0;
+
+    type PaymentPayload = {
+      paymentMethodId?: unknown;
+      paymentMethodNumericId?: unknown;
+      transactionId?: unknown;
+      receiptId?: unknown;
+      /** PENDING or SUBMITTED only (applicant); defaults to SUBMITTED */
+      paymentStatus?: unknown;
+    };
+    const paymentPayload = (body.data as { payment?: PaymentPayload }).payment;
+
+    let resolvedPaymentMethodDocumentId: string | null = null;
+    let resolvedPaymentMethodNumericId: number | null = null;
+    let resolvedPaymentTransactionId: string | null = null;
+    let resolvedPaymentReceiptId: number | null = null;
+    let resolvedPaymentStatus: PaymentStatus = "SUBMITTED";
+
+    if (requiresApplicationPayment) {
+      if (!paymentPayload) {
+        return NextResponse.json(
+          {
+            error:
+              "Payment details are required because this program has an application fee.",
+          },
+          { status: 400 }
+        );
+      }
+      const tx =
+        typeof paymentPayload.transactionId === "string"
+          ? paymentPayload.transactionId.trim()
+          : "";
+      if (!tx) {
+        return NextResponse.json(
+          { error: "Transaction reference is required for the application fee." },
+          { status: 400 }
+        );
+      }
+      const receiptNumeric = toNumberOrNull(paymentPayload.receiptId);
+      if (receiptNumeric == null) {
+        return NextResponse.json(
+          { error: "A payment receipt file is required for the application fee." },
+          { status: 400 }
+        );
+      }
+      const pmRaw = paymentPayload.paymentMethodId;
+      const pmNumericFromBody = toNumberOrNull(paymentPayload.paymentMethodNumericId);
+      const pmDocumentId =
+        typeof pmRaw === "string" && pmRaw.trim() !== "" && Number.isNaN(Number(pmRaw))
+          ? pmRaw.trim()
+          : null;
+      const pmIdFromRaw = toNumberOrNull(pmRaw);
+      if (!pmDocumentId && pmIdFromRaw == null && pmNumericFromBody == null) {
+        return NextResponse.json({ error: "Payment method is required." }, { status: 400 });
+      }
+      const verifiedMethod = await fetchPaymentMethodByIdentifiers({
+        strapiUrl,
+        token: authToken,
+        methodId: pmIdFromRaw ?? pmNumericFromBody,
+        methodDocumentId: pmDocumentId,
+      });
+      if (!verifiedMethod || !verifiedMethod.isActive) {
+        return NextResponse.json({ error: "Invalid or inactive payment method." }, { status: 400 });
+      }
+      const methodType = String(verifiedMethod.type || "").toUpperCase();
+      if (methodType !== "BANK" && methodType !== "TELEBIRR") {
+        return NextResponse.json({ error: "Unsupported payment method type." }, { status: 400 });
+      }
+      resolvedPaymentMethodDocumentId =
+        typeof verifiedMethod.documentId === "string" ? verifiedMethod.documentId : null;
+      resolvedPaymentMethodNumericId =
+        typeof verifiedMethod.id === "number" ? verifiedMethod.id : null;
+      resolvedPaymentTransactionId = tx;
+      resolvedPaymentReceiptId = receiptNumeric;
+      const requested = parsePaymentStatus(paymentPayload.paymentStatus);
+      if (requested === "PENDING" || requested === "SUBMITTED") {
+        resolvedPaymentStatus = requested;
+      }
+    }
+
     const offeringDocumentId =
       (getField(programOffering, "documentId") as string | null) ||
       programOfferingDocumentId;
+    const resolvedOfferingNumericId =
+      toNumberOrNull(getField(programOffering, "id")) ??
+      programOfferingNumericId ??
+      programOfferingId;
+
     const currentCount = await fetchApplicationCount({
       strapiUrl,
-      offeringId: programOfferingId,
+      offeringId: resolvedOfferingNumericId,
       offeringDocumentId,
       token: authToken,
     });
@@ -408,26 +777,81 @@ export async function POST(request: NextRequest) {
     const calendarId = getField(academicCalendar, "id") as number | undefined;
     const calendarDocumentId = getField(academicCalendar, "documentId") as string | null;
 
-    const existingApplication = await findExistingApplication({
+    let existingApplication = await findExistingApplication({
       strapiUrl,
       profileId,
       profileDocumentId,
-      offeringId: programOfferingId,
+      offeringId: resolvedOfferingNumericId,
       offeringDocumentId,
       token: authToken,
     });
 
-    const applicationStatus =
-      typeof (body.data as { applicationStatus?: unknown })?.applicationStatus === "string"
-        ? (body.data as { applicationStatus: string }).applicationStatus
-        : "Draft";
+    if (!existingApplication) {
+      existingApplication = await findExistingApplicationByOfferingScan({
+        strapiUrl,
+        profileId,
+        profileDocumentId,
+        offeringId: resolvedOfferingNumericId,
+        offeringDocumentId,
+        token: authToken,
+      });
+    }
+
+    const targetOfferingIdentity = {
+      id: resolvedOfferingNumericId,
+      documentId: offeringDocumentId ?? null,
+    };
+    const targetProgramIdentity = getProgramIdentityFromOffering(programOffering);
+
+    if (!existingApplication) {
+      const profileApps = await fetchApplicationsForProfile({
+        strapiUrl,
+        profileId,
+        profileDocumentId,
+        token: authToken,
+      });
+      for (const app of profileApps) {
+        const rawOff =
+          getField(app, "program_offering") ?? getField(app, "programOffering");
+        if (offeringIdentitiesMatch(getOfferingIdentity(rawOff), targetOfferingIdentity)) {
+          existingApplication = normalizeEntity(app) ?? app;
+          break;
+        }
+      }
+
+      if (!existingApplication) {
+        const hasProgramKey =
+          targetProgramIdentity.documentId != null ||
+          (targetProgramIdentity.id != null && targetProgramIdentity.id > 0);
+        if (hasProgramKey) {
+          for (const app of profileApps) {
+            const rawOff =
+              getField(app, "program_offering") ?? getField(app, "programOffering");
+            if (offeringIdentitiesMatch(getOfferingIdentity(rawOff), targetOfferingIdentity)) {
+              continue;
+            }
+            const appProgramIdentity = getProgramIdentityFromOffering(rawOff);
+            if (programIdentitiesMatch(appProgramIdentity, targetProgramIdentity)) {
+              return NextResponse.json(
+                {
+                  error:
+                    "You already have an application for this program. Each program may only be applied to once.",
+                },
+                { status: 409 }
+              );
+            }
+          }
+        }
+      }
+    }
+
     const shouldSetSubmittedAt = applicationStatus.toLowerCase() !== "draft";
 
     const payload: Record<string, unknown> = {
       applicationStatus,
       ...(shouldSetSubmittedAt && { submittedAt: new Date().toISOString() }),
       student_profile: profileDocumentId || profileId,
-      program_offering: offeringDocumentId || programOfferingId,
+      program_offering: offeringDocumentId || resolvedOfferingNumericId || programOfferingId,
       academic_calendar: calendarDocumentId || calendarId,
     };
 
@@ -457,7 +881,66 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json(result, { status: existingApplication ? 200 : 201 });
+    const httpStatus = existingApplication ? 200 : 201;
+    const appEntity = extractApplicationFromStrapiResponse(result);
+
+    if (
+      requiresApplicationPayment &&
+      appEntity &&
+      resolvedPaymentTransactionId != null &&
+      resolvedPaymentReceiptId != null
+    ) {
+      const appDocCreated = getField(appEntity, "documentId") as string | null;
+      const appNumericCreated = toNumberOrNull(getField(appEntity, "id"));
+      const existingPayCount = await countPaymentsForStudentApplication({
+        strapiUrl,
+        token: authToken,
+        applicationDocumentId: appDocCreated,
+        applicationNumericId: appNumericCreated,
+      });
+      if (existingPayCount === 0) {
+        const payOutcome = await createPaymentRecord({
+          strapiUrl,
+          token: authToken,
+          applicationDocumentId: appDocCreated,
+          applicationNumericId: appNumericCreated,
+          paymentMethodDocumentId: resolvedPaymentMethodDocumentId,
+          paymentMethodNumericId: resolvedPaymentMethodNumericId,
+          transactionId: resolvedPaymentTransactionId,
+          receiptId: resolvedPaymentReceiptId,
+          paymentStatus: resolvedPaymentStatus,
+        });
+        if (!payOutcome.ok) {
+          const payErr =
+            (payOutcome.body as { error?: { message?: unknown } })?.error?.message ||
+            (payOutcome.body as { message?: unknown })?.message ||
+            "Failed to record payment";
+          return NextResponse.json(
+            {
+              ...(typeof result === "object" && result !== null && !Array.isArray(result)
+                ? (result as Record<string, unknown>)
+                : {}),
+              paymentError: String(payErr),
+              paymentDetails: payOutcome.body,
+              applicationFeeNote:
+                "Your application was saved, but the payment record could not be created. Contact admissions with your application ID.",
+            },
+            { status: httpStatus }
+          );
+        }
+        return NextResponse.json(
+          {
+            ...(typeof result === "object" && result !== null && !Array.isArray(result)
+              ? (result as Record<string, unknown>)
+              : {}),
+            payment: payOutcome.body,
+          },
+          { status: httpStatus }
+        );
+      }
+    }
+
+    return NextResponse.json(result, { status: httpStatus });
   } catch (error) {
     console.error("Student application creation error:", error);
     const errorMessage =

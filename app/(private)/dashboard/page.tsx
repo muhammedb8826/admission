@@ -21,6 +21,11 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { getStrapiURL } from "@/lib/strapi/client"
+import {
+  applicationPaymentBadgeClassName,
+  getApplicationPaymentStatusLine,
+  getStudentApplications,
+} from "@/lib/student-applications"
 
 function getInitials(firstName: string, email: string): string {
   if (firstName) {
@@ -51,26 +56,6 @@ type StudentProfile = {
   programType?: string | null;
   semester?: string | null;
   createdAt?: string | null;
-};
-
-type StudentApplication = {
-  id?: number;
-  documentId?: string;
-  applicationStatus?: string;
-  submittedAt?: string | null;
-  createdAt?: string | null;
-  program_offering?: {
-    id?: number;
-    documentId?: string;
-    program?: { name?: string; fullName?: string } | null;
-    batch?: { name?: string; code?: string | null } | null;
-    academic_calendar?: { name?: string; academicYearRange?: string } | null;
-  } | null;
-  academic_calendar?: {
-    id?: number;
-    name?: string;
-    academicYearRange?: string;
-  } | null;
 };
 
 async function getStudentProfile(email: string, userId: string) {
@@ -186,82 +171,6 @@ function getStatusBadge(status: string) {
   }
 }
 
-async function getStudentApplication(profile: StudentProfile | null, sessionUserId: string) {
-  try {
-    const strapiUrl = getStrapiURL();
-    if (!strapiUrl) {
-      return null;
-    }
-
-    const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
-    // Match program-offerings populate so program_offering returns program + batch (same shape as /api/program-offerings)
-    const populate =
-      "populate=*" +
-      "&populate[academic_calendar]=*" +
-      "&populate[program_offering][populate][academic_calendar][populate]=*" +
-      "&populate[program_offering][populate][program][populate]=*" +
-      "&populate[program_offering][populate][batch][populate]=*" +
-      "&populate[program_offering][populate][college][populate]=*" +
-      "&populate[program_offering][populate][department][populate]=*" +
-      "&populate[program_offering][populate][semesters][populate]=*";
-
-    const fetchByFilters = async (filters: string[]) => {
-      const url = `${strapiUrl}/api/student-applications?${filters.join("&")}&${populate}&sort[0]=updatedAt:desc&pagination[pageSize]=1`;
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          ...(apiToken && { Authorization: `Bearer ${apiToken}` }),
-        },
-        cache: "no-store",
-      });
-
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({}));
-        console.log("[dashboard] student-applications not ok", {
-          status: response.status,
-          statusText: response.statusText,
-          filters,
-          errorBody,
-        });
-        return null;
-      }
-
-      const result = await response.json().catch(() => ({}));
-      const data = result?.data;
-      console.log("[dashboard] student-applications ok", {
-        filters,
-        total: result?.meta?.pagination?.total,
-        firstId: Array.isArray(data) ? data?.[0]?.id : data?.id,
-      });
-      if (Array.isArray(data)) {
-        return (data[0] as StudentApplication) || null;
-      }
-      return (data as StudentApplication) || null;
-    };
-
-    
-
-    if (profile?.documentId) {
-      const app = await fetchByFilters([
-        `filters[student_profile][documentId][$eq]=${encodeURIComponent(profile.documentId)}`,
-      ]);
-      if (app) return app;
-    }
-    if (typeof profile?.id === "number") {
-      const app = await fetchByFilters([`filters[student_profile][id][$eq]=${profile.id}`]);
-      if (app) return app;
-    }
-
-    const userIdNumber = Number(sessionUserId);
-    if (!Number.isFinite(userIdNumber)) return null;
-    return await fetchByFilters([`filters[student_profile][user][id][$eq]=${userIdNumber}`]);
-  } catch (error) {
-    console.error("Error fetching student application:", error);
-    return null;
-  }
-}
-
 export default async function DashboardPage() {
   const session = await getSession()
 
@@ -278,10 +187,14 @@ export default async function DashboardPage() {
 
   // Fetch student profile (API route handles filtering by logged-in user)
   const studentProfile = await getStudentProfile(session.email, session.userId);
-  const studentApplication = await getStudentApplication(studentProfile, session.userId);
-
-  const hasApplication = !!studentApplication;
-  const applicationStatus = studentApplication?.applicationStatus || "not_started";
+  const studentApplications = await getStudentApplications(
+    studentProfile,
+    session.userId,
+    session.jwt
+  );
+  const latestApplication = studentApplications[0];
+  const hasApplication = studentApplications.length > 0;
+  const applicationStatus = latestApplication?.applicationStatus || "not_started";
   const isProfileComplete = studentProfile?.isProfileComplete === true;
   console.log("[Dashboard page] studentProfile id:", studentProfile?.id, "isProfileComplete raw:", studentProfile?.isProfileComplete, "resolved:", isProfileComplete);
 
@@ -318,12 +231,16 @@ export default async function DashboardPage() {
                   <div>
                     <p className="text-sm text-muted-foreground">Application</p>
                     <p className="text-lg font-semibold">
-                      {hasApplication ? "Submitted" : "Not started"}
+                      {hasApplication
+                        ? studentApplications.length > 1
+                          ? `${studentApplications.length} applications`
+                          : "Submitted"
+                        : "Not started"}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
                       {hasApplication
-                        ? studentApplication?.submittedAt
-                          ? `Submitted ${new Date(studentApplication.submittedAt).toLocaleDateString()}`
+                        ? latestApplication?.submittedAt
+                          ? `Last submitted ${new Date(latestApplication.submittedAt).toLocaleDateString()}`
                           : "In progress"
                         : "Start your application"}
                     </p>
@@ -348,16 +265,18 @@ export default async function DashboardPage() {
               <Card>
                 <CardContent className="flex items-center justify-between py-6">
                   <div>
-                    <p className="text-sm text-muted-foreground">Selected Program</p>
+                    <p className="text-sm text-muted-foreground">Latest program</p>
                     <p className="text-lg font-semibold">
-                      {studentApplication?.program_offering?.program?.name ||
-                        studentApplication?.program_offering?.program?.fullName ||
+                      {latestApplication?.program_offering?.program?.name ||
+                        latestApplication?.program_offering?.program?.fullName ||
                         "N/A"}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {studentApplication?.program_offering?.batch?.code ||
-                        studentApplication?.program_offering?.batch?.name ||
-                        "No batch selected"}
+                      {studentApplications.length > 1
+                        ? `+${studentApplications.length - 1} other program${studentApplications.length > 2 ? "s" : ""}`
+                        : latestApplication?.program_offering?.batch?.code ||
+                          latestApplication?.program_offering?.batch?.name ||
+                          "No batch selected"}
                     </p>
                   </div>
                   <GraduationCap className="h-8 w-8 text-primary/70" />
@@ -368,15 +287,15 @@ export default async function DashboardPage() {
                   <div>
                     <p className="text-sm text-muted-foreground">Academic Calendar</p>
                     <p className="text-lg font-semibold">
-                      {studentApplication?.academic_calendar?.academicYearRange ||
-                        studentApplication?.academic_calendar?.name ||
-                        studentApplication?.program_offering?.academic_calendar?.academicYearRange ||
-                        studentApplication?.program_offering?.academic_calendar?.name ||
+                      {latestApplication?.academic_calendar?.academicYearRange ||
+                        latestApplication?.academic_calendar?.name ||
+                        latestApplication?.program_offering?.academic_calendar?.academicYearRange ||
+                        latestApplication?.program_offering?.academic_calendar?.name ||
                         "N/A"}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {studentApplication?.academic_calendar?.name ||
-                        studentApplication?.program_offering?.academic_calendar?.name ||
+                      {latestApplication?.academic_calendar?.name ||
+                        latestApplication?.program_offering?.academic_calendar?.name ||
                         "Not assigned"}
                     </p>
                   </div>
@@ -391,8 +310,10 @@ export default async function DashboardPage() {
                   <div>
                     <CardTitle>Application Status</CardTitle>
                     <CardDescription>
-                      {hasApplication 
-                        ? "Track your admission application progress"
+                      {hasApplication
+                        ? studentApplications.length > 1
+                          ? `You have ${studentApplications.length} applications (most recent status below)`
+                          : "Track your admission application progress"
                         : "Start your admission application process"}
                     </CardDescription>
                   </div>
@@ -402,49 +323,76 @@ export default async function DashboardPage() {
               <CardContent>
                 {hasApplication ? (
                   <div className="space-y-4">
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-1">
-                        <p className="text-sm text-muted-foreground">Program</p>
-                        <p className="text-sm font-medium">
-                          {studentApplication?.program_offering?.program?.name ||
-                            studentApplication?.program_offering?.program?.fullName ||
-                            "Not specified"}
-                        </p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-sm text-muted-foreground">Batch</p>
-                        <p className="text-sm font-medium">
-                          {studentApplication?.program_offering?.batch?.code ||
-                            studentApplication?.program_offering?.batch?.name ||
-                            "Not specified"}
-                        </p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-sm text-muted-foreground">Academic Calendar</p>
-                        <p className="text-sm font-medium">
-                          {studentApplication?.academic_calendar?.academicYearRange ||
-                            studentApplication?.academic_calendar?.name ||
-                            studentApplication?.program_offering?.academic_calendar?.academicYearRange ||
-                            studentApplication?.program_offering?.academic_calendar?.name ||
-                            "Not specified"}
-                        </p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-sm text-muted-foreground">Submitted Date</p>
-                        <p className="text-sm font-medium">
-                          {studentApplication?.submittedAt
-                            ? new Date(studentApplication.submittedAt).toLocaleDateString()
-                            : studentApplication?.createdAt
-                              ? new Date(studentApplication.createdAt).toLocaleDateString()
-                            : "N/A"}
-                        </p>
-                      </div>
+                    <div className="space-y-6">
+                      {studentApplications.map((app, index) => {
+                        const paymentUi = getApplicationPaymentStatusLine(app);
+                        return (
+                        <div
+                          key={app.documentId ? String(app.documentId) : `app-${app.id ?? index}`}
+                          className="space-y-3 rounded-md border border-border/70 p-4"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-sm font-medium text-foreground">
+                              {app.program_offering?.program?.name ||
+                                app.program_offering?.program?.fullName ||
+                                `Application ${index + 1}`}
+                            </p>
+                            {getStatusBadge(app.applicationStatus || "draft")}
+                          </div>
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <div className="space-y-1">
+                              <p className="text-sm text-muted-foreground">Payment status</p>
+                              <Badge
+                                variant="outline"
+                                className={applicationPaymentBadgeClassName(paymentUi.status)}
+                              >
+                                {paymentUi.label}
+                              </Badge>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-sm text-muted-foreground">Batch</p>
+                              <p className="text-sm font-medium">
+                                {app.program_offering?.batch?.code ||
+                                  app.program_offering?.batch?.name ||
+                                  "Not specified"}
+                              </p>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-sm text-muted-foreground">Academic Calendar</p>
+                              <p className="text-sm font-medium">
+                                {app.academic_calendar?.academicYearRange ||
+                                  app.academic_calendar?.name ||
+                                  app.program_offering?.academic_calendar?.academicYearRange ||
+                                  app.program_offering?.academic_calendar?.name ||
+                                  "Not specified"}
+                              </p>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-sm text-muted-foreground">Submitted Date</p>
+                              <p className="text-sm font-medium">
+                                {app.submittedAt
+                                  ? new Date(app.submittedAt).toLocaleDateString()
+                                  : app.createdAt
+                                    ? new Date(app.createdAt).toLocaleDateString()
+                                    : "N/A"}
+                              </p>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-sm text-muted-foreground">Application ID</p>
+                              <p className="text-sm font-medium">
+                                {app.documentId || app.id || "N/A"}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        );
+                      })}
                     </div>
                     <div className="flex gap-2 pt-4 border-t">
                       <Button asChild>
                         <Link href="/dashboard/application">
                           <FileText className="mr-2 h-4 w-4" />
-                          View Application
+                          {studentApplications.length > 1 ? "View applications" : "View application"}
                         </Link>
                       </Button>
                     </div>
@@ -498,7 +446,7 @@ export default async function DashboardPage() {
                     <Button asChild variant="outline" className="w-full">
                       <Link href="/dashboard/application">
                         <FileText className="mr-2 h-4 w-4" />
-                        {hasApplication ? "View Application" : "Start Application"}
+                        {hasApplication ? "View applications" : "Start application"}
                       </Link>
                     </Button>
                   )}
@@ -579,11 +527,18 @@ export default async function DashboardPage() {
                         {studentProfile?.gender || "Not provided"}
                       </p>
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-sm text-muted-foreground">Application ID</p>
-                      <p className="text-sm font-medium">
-                        {studentApplication?.documentId || studentApplication?.id || "Not specified"}
-                      </p>
+                    <div className="space-y-1 md:col-span-2 lg:col-span-3">
+                      <p className="text-sm text-muted-foreground">Application IDs</p>
+                      <ul className="mt-1 list-inside list-disc text-sm font-medium">
+                        {studentApplications.map((app, i) => (
+                          <li key={app.documentId ? String(app.documentId) : `id-${app.id ?? i}`}>
+                            {app.program_offering?.program?.name ||
+                              app.program_offering?.program?.fullName ||
+                              "Program"}
+                            : {app.documentId || app.id || "N/A"}
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   </div>
                 </CardContent>

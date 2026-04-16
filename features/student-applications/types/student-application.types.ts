@@ -1,3 +1,11 @@
+export {
+  PAYMENT_STATUSES,
+  isPaymentStatus,
+  parsePaymentStatus,
+  paymentStatusLabel,
+} from "@/lib/strapi/payments";
+export type { PaymentStatus } from "@/lib/strapi/payments";
+
 // Student Application Form Data Types
 export type StudentApplicationFormData = {
   // Page 1: Choose Term
@@ -62,6 +70,8 @@ export type ProgramOffering = {
   isOpenForApply?: boolean;
   capacity?: number | null;
   capacityRemaining?: number | null;
+  /** Application fee in ETB; null or zero means no fee step */
+  applicationFee?: number | null;
   academic_calendar?: {
     id?: number;
     name?: string;
@@ -70,6 +80,7 @@ export type ProgramOffering = {
   } | null;
   program?: {
     id?: number;
+    documentId?: string;
     name?: string;
     fullName?: string;
     level?: string;
