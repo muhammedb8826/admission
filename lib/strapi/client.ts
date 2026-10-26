@@ -1,7 +1,7 @@
 const DEFAULT_STRAPI_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 const baseUrl = ( DEFAULT_STRAPI_URL ?? "").replace(/\/$/, "");
-const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
+const apiToken = process.env.STRAPI_API_TOKEN;
 
 type Primitive = string | number | boolean;
 type QueryValueRecord = { [key: string]: QueryValue | undefined };

@@ -32,7 +32,7 @@ async function getStudentProfile(email: string, userId: string) {
       return null;
     }
 
-    const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
+    const apiToken = process.env.STRAPI_API_TOKEN;
     
     // Use same query as dashboard so isProfileComplete and other root fields are returned consistently
     const response = await fetch(

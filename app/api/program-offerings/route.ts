@@ -152,7 +152,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const populate = searchParams.get("populate") || "*";
 
-    const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
+    const apiToken = process.env.STRAPI_API_TOKEN;
     const filters = [
       "filters[isOpenForApply][$eq]=true",
       "filters[academic_calendar][isActive][$eq]=true",

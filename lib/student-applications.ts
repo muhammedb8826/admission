@@ -457,7 +457,7 @@ export async function getStudentApplications(
     }
 
     const authToken =
-      process.env.NEXT_PUBLIC_API_TOKEN ||
+      process.env.STRAPI_API_TOKEN ||
       (typeof sessionJwt === "string" && sessionJwt.trim() !== "" ? sessionJwt.trim() : undefined);
 
     const fetchByFilters = async (filters: string[]): Promise<StudentApplicationRecord[]> => {

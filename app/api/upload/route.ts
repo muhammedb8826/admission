@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     }
 
     const userJwt = session.jwt;
-    const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
+    const apiToken = process.env.STRAPI_API_TOKEN;
     const authToken = userJwt || apiToken;
 
     // Sanitize filename to avoid issues with special characters

@@ -530,7 +530,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
+    const apiToken = process.env.STRAPI_API_TOKEN;
     const { search } = new URL(request.url);
     const url = `${strapiUrl}/api/student-applications${search || ""}`;
 
@@ -585,7 +585,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
+    const apiToken = process.env.STRAPI_API_TOKEN;
     const userJwt = (session as { jwt?: string }).jwt;
     // Prefer the server API token when available.
     const authToken = apiToken || userJwt;

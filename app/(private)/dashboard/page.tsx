@@ -65,7 +65,7 @@ async function getStudentProfile(email: string, userId: string) {
       return null;
     }
 
-    const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
+    const apiToken = process.env.STRAPI_API_TOKEN;
     
     // Fetch all profiles and filter server-side by logged-in user
     // This ensures security - we only return data for the authenticated user

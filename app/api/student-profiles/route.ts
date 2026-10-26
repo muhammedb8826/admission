@@ -287,7 +287,7 @@ export async function POST(request: NextRequest) {
 
 
     const userJwt = session.jwt;
-    const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
+    const apiToken = process.env.STRAPI_API_TOKEN;
     const authToken = userJwt || apiToken;
 
     const { userIdNumber, userDocumentId } = getUserIdentifiers(session);
@@ -826,7 +826,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
+    const apiToken = process.env.STRAPI_API_TOKEN;
     const userJwt = session.jwt;
     const requestUrl = new URL(request.url);
     
@@ -934,7 +934,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const userJwt = session.jwt;
-    const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
+    const apiToken = process.env.STRAPI_API_TOKEN;
     const authToken = userJwt || apiToken;
     const { userIdNumber, userDocumentId } = getUserIdentifiers(session);
 

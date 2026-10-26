@@ -2,6 +2,7 @@ const isDev = process.env.NODE_ENV !== "production";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: "standalone",
   images: {
     remotePatterns: [
       {
@@ -12,7 +13,7 @@ const nextConfig = {
       },
       {
         protocol: "https",
-        hostname: "admission-portal.bluemoongt.com",
+        hostname: "admission-api.dadu.edu.et",
         pathname: "/uploads/**",
       },
     ],

@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
+    const apiToken = process.env.STRAPI_API_TOKEN;
     const userJwt = (session as { jwt?: string }).jwt;
     const authToken = apiToken || userJwt;
 

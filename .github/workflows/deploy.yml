@@ -1,50 +1,42 @@
-name: Deploy Next.js App to cPanel via FTP
-
+name: Deploy admission frontend
 on:
   push:
-    branches:
-      - main
-
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: admission-production
+  cancel-in-progress: false
 jobs:
-  web-deploy:
+  deploy:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 22.18.0
-
-    - name: Install dependencies
-      run: npm install
-
-    - name: Create env file for build
-      run: |
-        rm -f .env.production
-        {
-          echo "NEXT_PUBLIC_API_BASE_URL=https://admission-portal.bluemoongt.com";
-          echo "NEXT_PUBLIC_API_TOKEN=aab8441179500b7101a5e5a3ff330dea2ecfb802a6fc946f7b11373b2bd34de86c7a5cb2bc034a2019b97f2ac7199b1eba53a23c041d36d290b2e0bcbd9c7c1d67f8b431515d9e9e169dd58f0b1b20c522edcd91bcf646ff6f6c991671ffebc192ec6b3b34162fce97d7a984b73ac7ecb3647aabadbaf8a70368ec03355e9455";
-        } >> .env.production
-
-    - name: Build Next.js app
-      run: npm run build
-
-    - name: Deploy to cPanel via FTP
-      uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-      with:
-        server: ${{ secrets.FTP_SERVER }}
-        username: ${{ secrets.FTP_USERNAME }}
-        password: ${{ secrets.FTP_PASSWORD }}
-        server-dir: ${{ secrets.FTP_SERVER_DIR }}
-        local-dir: ./
-        protocol: ftp
-        exclude: |
-         .git/**
-         .github/**
-          node_modules/**
-         .next/cache/**
-         .env.production
-      # Optionally add any other files you don't need on the remote server
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          DEPLOY_SHA: ${{ github.sha }}
+          STRAPI_API_TOKEN: ${{ secrets.STRAPI_API_TOKEN }}
+        with:
+          host: ${{ secrets.HOST || '196.190.251.30' }}
+          username: ${{ secrets.USERNAME || 'daduvm01' }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || '443' }}
+          fingerprint: ${{ secrets.SSH_HOST_FINGERPRINT }}
+          command_timeout: 40m
+          envs: DEPLOY_SHA,STRAPI_API_TOKEN
+          script: |
+            set -eu
+            cd /var/www/admission
+            git diff --quiet && git diff --cached --quiet
+            git fetch origin main
+            git checkout --detach "$DEPLOY_SHA"
+            umask 077
+            touch .env
+            if [ -n "${STRAPI_API_TOKEN:-}" ]; then
+              sed -i '/^STRAPI_API_TOKEN=/d' .env
+              printf 'STRAPI_API_TOKEN=%s\n' "$STRAPI_API_TOKEN" >> .env
+            fi
+            docker compose config -q
+            docker compose up -d --build --wait --wait-timeout 180
+            curl --fail --silent --show-error http://127.0.0.1:3021/api/health

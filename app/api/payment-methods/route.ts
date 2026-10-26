@@ -17,7 +17,7 @@ export async function GET() {
     }
 
     const session = await getSession();
-    const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
+    const apiToken = process.env.STRAPI_API_TOKEN;
     const userJwt = (session as { jwt?: string } | null)?.jwt;
     const token = apiToken || userJwt;
 

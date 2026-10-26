@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
+    const apiToken = process.env.STRAPI_API_TOKEN;
     const { searchParams } = new URL(request.url);
     const populate = searchParams.get("populate") || "regions";
 
